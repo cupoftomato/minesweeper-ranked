@@ -277,9 +277,17 @@ function updateProgress(room) {
   io.to(room.id).emit('progressUpdate', prog);
 }
 
-function handleWin(room, winnerId, reason) {
+function handleWin(room, winnerId, reason, isDraw = false) {
   if (room.status === 'ended') return;
   room.status = 'ended';
+  
+  if (isDraw) {
+      for(let pid in room.players) {
+          io.to(pid).emit('gameOver', { winner: null, reason: reason + ' (Hòa - Không đổi Elo)' });
+      }
+      return;
+  }
+
   let loserId = Object.keys(room.players).find(id => id !== winnerId);
   let p1EloStr = "", p2EloStr = "";
   if (room.type === 'ranked' && loserId) {
@@ -465,6 +473,37 @@ io.on('connection', (socket) => {
      if (!p || p.openedGrid[r][c]) return;
      p.flagsGrid[r][c] = !p.flagsGrid[r][c];
      socket.emit('flagResult', {r, c, isFlagged: p.flagsGrid[r][c]});
+  });
+
+  socket.on('surrender', () => {
+     if (!socket.roomId) return;
+     const room = rooms[socket.roomId];
+     if (!room || room.status !== 'playing') return;
+     let winnerId = Object.keys(room.players).find(id => id !== socket.id);
+     handleWin(room, winnerId, 'Đối thủ đã đầu hàng!');
+  });
+
+  socket.on('offerDraw', () => {
+     if (!socket.roomId) return;
+     const room = rooms[socket.roomId];
+     if (!room || room.status !== 'playing') return;
+     let oppId = Object.keys(room.players).find(id => id !== socket.id);
+     if (oppId) io.to(oppId).emit('drawOffered');
+  });
+
+  socket.on('acceptDraw', () => {
+     if (!socket.roomId) return;
+     const room = rooms[socket.roomId];
+     if (!room || room.status !== 'playing') return;
+     handleWin(room, null, 'Hai bên đồng ý hòa!', true);
+  });
+
+  socket.on('rejectDraw', () => {
+     if (!socket.roomId) return;
+     const room = rooms[socket.roomId];
+     if (!room || room.status !== 'playing') return;
+     let oppId = Object.keys(room.players).find(id => id !== socket.id);
+     if (oppId) io.to(oppId).emit('drawRejected');
   });
 
   socket.on('disconnect', () => {

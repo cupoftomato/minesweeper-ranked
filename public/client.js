@@ -54,6 +54,12 @@ const chatContainer = document.getElementById('chat-container');
 const chatMessages = document.getElementById('chat-messages');
 const chatInput = document.getElementById('chat-input');
 
+const btnSurrender = document.getElementById('btnSurrender');
+const btnOfferDraw = document.getElementById('btnOfferDraw');
+const drawModal = document.getElementById('draw-modal');
+const btnAcceptDraw = document.getElementById('btnAcceptDraw');
+const btnRejectDraw = document.getElementById('btnRejectDraw');
+
 let myId = null;
 let myUsername = localStorage.getItem('ms_username') || '';
 let myCurrentElo = parseInt(localStorage.getItem('ms_elo')) || 1200;
@@ -169,7 +175,7 @@ socket.on('intermission_start', (data) => {
     }
     
     seedNameDisplay.innerText = data.seedType + ' SEED';
-    seedBg.className = `seed-bg seed-${data.seedType}`;
+    seedBg.style.backgroundImage = `url(${generateCanvasSeed(data.seedType)})`;
     
     btnVoteSkip.disabled = false;
     btnVoteSkip.innerText = "ĐỔI SEED KHÁC";
@@ -190,6 +196,46 @@ socket.on('vote_update', ({votes, total}) => {
     voteStatusText.innerText = `${votes}/${total} người muốn đổi`;
 });
 
+
+function generateCanvasSeed(type) {
+    const canvas = document.createElement('canvas');
+    const cols = 16, rows = 16;
+    const cellSize = 10;
+    canvas.width = cols * cellSize;
+    canvas.height = rows * cellSize;
+    const ctx = canvas.getContext('2d');
+    
+    // Background color
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw cells
+    for(let r=0; r<rows; r++) {
+        for(let c=0; c<cols; c++) {
+            let isMine = false;
+            // Rough simulation of algorithms for visual representation
+            if(type === 'Edge-Heavy') {
+                if(r<2 || r>=14 || c<2 || c>=14) isMine = Math.random() > 0.3;
+            } else if(type === 'Center-Heavy') {
+                if(r>=4 && r<12 && c>=4 && c<12) isMine = Math.random() > 0.3;
+            } else if(type === 'Linear') {
+                if(c === r || c === 15-r) isMine = true;
+            } else if(type === 'Symmetric') {
+                isMine = (c<8 && Math.random()>0.8) ? true : false;
+                // Mirrors handled poorly here but we just use random for visual
+                if(Math.random()>0.8) isMine = true; 
+            } else if(type === 'Trap') {
+                if((r%4===0 && c%4===0)) isMine = true;
+            } else {
+                isMine = Math.random() > 0.8;
+            }
+
+            ctx.fillStyle = isMine ? '#ef4444' : '#334155';
+            ctx.fillRect(c*cellSize, r*cellSize, cellSize-1, cellSize-1);
+        }
+    }
+    return canvas.toDataURL('image/png');
+}
 
 // ================= GAME =================
 socket.on('game_start', (data) => {
@@ -336,6 +382,42 @@ socket.on('gameOver', ({winner, reason}) => {
 
 btnReturnLobby.addEventListener('click', () => {
     showLobby(myUsername, myCurrentElo);
+});
+
+// SURRENDER & DRAW
+btnSurrender.addEventListener('click', () => {
+    if(confirm('Bạn có chắc chắn muốn đầu hàng không? (Sẽ bị xử thua)')) {
+        socket.emit('surrender');
+    }
+});
+
+btnOfferDraw.addEventListener('click', () => {
+    btnOfferDraw.disabled = true;
+    btnOfferDraw.innerText = 'Đã xin hòa';
+    socket.emit('offerDraw');
+    addSysMsg('Đã gửi lời mời hòa cho đối thủ.');
+    setTimeout(() => { 
+        btnOfferDraw.disabled = false; 
+        btnOfferDraw.innerText = 'Xin Hòa'; 
+    }, 15000); // 15s cooldown
+});
+
+socket.on('drawOffered', () => {
+    drawModal.classList.remove('hidden');
+});
+
+btnAcceptDraw.addEventListener('click', () => {
+    drawModal.classList.add('hidden');
+    socket.emit('acceptDraw');
+});
+
+btnRejectDraw.addEventListener('click', () => {
+    drawModal.classList.add('hidden');
+    socket.emit('rejectDraw');
+});
+
+socket.on('drawRejected', () => {
+    addSysMsg('Đối thủ đã từ chối lời mời hòa.');
 });
 
 
