@@ -40,11 +40,6 @@
       </div>
 
       <div id="action-buttons">
-        <select id="diffSelect" class="diff-select">
-           <option value="easy">Dễ (8x10 - 10 Mìn)</option>
-           <option value="medium">Trung bình (14x16 - 35 Mìn)</option>
-           <option value="hard">Khó (18x20 - 75 Mìn)</option>
-        </select>
         <button id="btnNormal" class="btn-mode normal-btn">PLAY NORMAL</button>
         <button id="btnRanked" class="btn-mode ranked-btn">PLAY RANKED</button>
       </div>
@@ -57,6 +52,34 @@
 
       <p id="lobbyMessage" class="error"></p>
     </div>
+  </div>
+
+  <!-- INTERMISSION SCREEN -->
+  <div id="intermission-screen" class="hidden">
+      <div id="seed-background" class="seed-bg"></div>
+      <div class="intermission-content">
+          <h2>MATCH FOUND!</h2>
+          <div class="vs-banner">
+              <div class="vs-p1"><span id="int-my-name">BẠN</span> <br><span id="int-my-elo" class="gold-text"></span></div>
+              <div class="vs-vs">VS</div>
+              <div class="vs-p2"><span id="int-opp-name">ĐỐI THỦ</span> <br><span id="int-opp-elo" class="gold-text"></span></div>
+          </div>
+          
+          <div class="seed-info-box">
+              <h3>SEED TYPE</h3>
+              <div id="seed-name-display" class="seed-name">TRAP SEED</div>
+          </div>
+
+          <div class="timer-box">
+              Trận đấu sẽ bắt đầu sau: <br>
+              <span id="intermission-timer">10</span>s
+          </div>
+
+          <div class="vote-box">
+              <button id="btnVoteSkip" class="btn-danger">ĐỔI SEED KHÁC</button>
+              <p id="vote-status-text">0/2 người muốn đổi</p>
+          </div>
+      </div>
   </div>
 
   <!-- GAME SCREEN -->
@@ -87,6 +110,12 @@
        <span id="gameResultText"></span><br>
        <button id="btnReturnLobby" class="btn-primary" style="margin-top: 15px;">Về Sảnh Chờ</button>
     </div>
+  </div>
+
+  <!-- CHAT BOX -->
+  <div id="chat-container" class="hidden">
+      <div id="chat-messages"></div>
+      <input type="text" id="chat-input" placeholder="Nhấn Enter để chat..." autocomplete="off">
   </div>
 
   <script src="/socket.io/socket.io.js"></script>

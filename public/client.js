@@ -1,22 +1,20 @@
 const socket = io();
 
-// DOM Elements - Screens
+// DOM Elements
 const authScreen = document.getElementById('auth-screen');
 const lobbyScreen = document.getElementById('lobby-screen');
+const intermissionScreen = document.getElementById('intermission-screen');
 const gameScreen = document.getElementById('game-screen');
 
-// Auth DOM
 const usernameInput = document.getElementById('usernameInput');
 const passwordInput = document.getElementById('passwordInput');
 const authMessage = document.getElementById('authMessage');
 const btnLogin = document.getElementById('btnLogin');
 const btnRegister = document.getElementById('btnRegister');
 
-// Lobby DOM
 const lobbyUsername = document.getElementById('lobbyUsername');
 const lobbyElo = document.getElementById('lobbyElo');
 const btnLogout = document.getElementById('btnLogout');
-const diffSelect = document.getElementById('diffSelect');
 const btnNormal = document.getElementById('btnNormal');
 const btnRanked = document.getElementById('btnRanked');
 const actionButtons = document.getElementById('action-buttons');
@@ -24,6 +22,17 @@ const matchmakingStatus = document.getElementById('matchmaking-status');
 const statusText = document.getElementById('status-text');
 const btnCancel = document.getElementById('btnCancel');
 const lobbyMessage = document.getElementById('lobbyMessage');
+
+// Intermission DOM
+const intMyName = document.getElementById('int-my-name');
+const intMyElo = document.getElementById('int-my-elo');
+const intOppName = document.getElementById('int-opp-name');
+const intOppElo = document.getElementById('int-opp-elo');
+const seedNameDisplay = document.getElementById('seed-name-display');
+const intermissionTimer = document.getElementById('intermission-timer');
+const btnVoteSkip = document.getElementById('btnVoteSkip');
+const voteStatusText = document.getElementById('vote-status-text');
+const seedBg = document.getElementById('seed-background');
 
 // Game UI
 const boardEl = document.getElementById('minesweeper-board');
@@ -40,6 +49,11 @@ const myEloEl = document.getElementById('my-elo');
 const oppEloEl = document.getElementById('opp-elo');
 const oppNameEl = document.getElementById('opp-name');
 
+// Chat UI
+const chatContainer = document.getElementById('chat-container');
+const chatMessages = document.getElementById('chat-messages');
+const chatInput = document.getElementById('chat-input');
+
 let myId = null;
 let myUsername = localStorage.getItem('ms_username') || '';
 let myCurrentElo = 1200;
@@ -54,16 +68,13 @@ let findTime = 0;
 
 // ================= AUTHENTICATION =================
 if (myUsername) {
-  // Assume already logged in (no strict token validation for MVP)
   showLobby(myUsername, "Đang tải...");
   socket.emit('auth', myUsername);
 }
 
 socket.on('connect', () => {
   myId = socket.id;
-  if (myUsername) {
-    socket.emit('auth', myUsername);
-  }
+  if (myUsername) socket.emit('auth', myUsername);
 });
 
 socket.on('authSuccess', (elo) => {
@@ -76,21 +87,16 @@ async function handleAuth(action) {
     const pass = passwordInput.value.trim();
     if (!user || !pass) {
         authMessage.innerText = 'Vui lòng nhập tên và mật khẩu!';
-        authMessage.classList.remove('hidden');
-        return;
+        authMessage.classList.remove('hidden'); return;
     }
-
     try {
         const res = await fetch(`/api/${action}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username: user, password: pass })
         });
         const data = await res.json();
-        
         if (data.success) {
-            myUsername = data.username;
-            myCurrentElo = data.elo;
+            myUsername = data.username; myCurrentElo = data.elo;
             localStorage.setItem('ms_username', myUsername);
             authScreen.classList.add('hidden');
             socket.emit('auth', myUsername);
@@ -109,43 +115,27 @@ btnLogin.addEventListener('click', () => handleAuth('login'));
 btnRegister.addEventListener('click', () => handleAuth('register'));
 
 function showLobby(name, elo) {
-    authScreen.classList.add('hidden');
-    gameScreen.classList.add('hidden');
+    authScreen.classList.add('hidden'); gameScreen.classList.add('hidden'); intermissionScreen.classList.add('hidden'); chatContainer.classList.add('hidden');
     lobbyScreen.classList.remove('hidden');
-    lobbyUsername.innerText = name;
-    lobbyElo.innerText = elo;
-    
-    // reset UI
-    actionButtons.classList.remove('hidden');
-    matchmakingStatus.classList.add('hidden');
-    gameMessage.classList.add('hidden');
+    lobbyUsername.innerText = name; lobbyElo.innerText = elo;
+    actionButtons.classList.remove('hidden'); matchmakingStatus.classList.add('hidden'); gameMessage.classList.add('hidden');
 }
 
 btnLogout.addEventListener('click', () => {
-    myUsername = '';
-    myCurrentElo = 1200;
+    myUsername = ''; myCurrentElo = 1200;
     localStorage.removeItem('ms_username');
-    socket.emit('logout'); // Tell server if needed, though disconnect is fine too
-    lobbyScreen.classList.add('hidden');
-    authScreen.classList.remove('hidden');
-    usernameInput.value = '';
-    passwordInput.value = '';
+    socket.emit('logout');
+    lobbyScreen.classList.add('hidden'); authScreen.classList.remove('hidden');
+    usernameInput.value = ''; passwordInput.value = '';
 });
 
 // ================= MATCHMAKING =================
 function startMatchmaking(type) {
-  const diff = diffSelect.value;
-  actionButtons.classList.add('hidden');
-  matchmakingStatus.classList.remove('hidden');
-  
-  socket.emit('findMatch', { type, diff });
-  
-  findTime = 0;
-  statusText.innerText = `Đang tìm đối thủ (${diff.toUpperCase()})... 0s`;
-  
+  actionButtons.classList.add('hidden'); matchmakingStatus.classList.remove('hidden');
+  socket.emit('findMatch', type);
+  findTime = 0; statusText.innerText = `Đang tìm đối thủ (${type.toUpperCase()})... 0s`;
   findingInterval = setInterval(() => {
-    findTime++;
-    statusText.innerText = `Đang tìm đối thủ (${diff.toUpperCase()})... ${findTime}s`;
+    findTime++; statusText.innerText = `Đang tìm đối thủ (${type.toUpperCase()})... ${findTime}s`;
   }, 1000);
 }
 
@@ -153,37 +143,76 @@ btnNormal.addEventListener('click', () => startMatchmaking('normal'));
 btnRanked.addEventListener('click', () => startMatchmaking('ranked'));
 
 btnCancel.addEventListener('click', () => {
-  socket.emit('cancelMatch');
-  clearInterval(findingInterval);
-  matchmakingStatus.classList.add('hidden');
-  actionButtons.classList.remove('hidden');
+  socket.emit('cancelMatch'); clearInterval(findingInterval);
+  matchmakingStatus.classList.add('hidden'); actionButtons.classList.remove('hidden');
 });
 
+// ================= INTERMISSION =================
+socket.on('intermission_start', (data) => {
+    clearInterval(findingInterval);
+    lobbyScreen.classList.add('hidden');
+    intermissionScreen.classList.remove('hidden');
+    chatContainer.classList.add('hidden');
+    
+    // Only update info if full data provided (first time)
+    if (data.myElo > 0) {
+        intMyName.innerText = myUsername;
+        intMyElo.innerText = `Elo: ${data.myElo}`;
+        intOppName.innerText = data.oppName;
+        intOppElo.innerText = `Elo: ${data.oppElo}`;
+        oppNameEl.innerText = data.oppName;
+        myEloEl.innerText = `(Elo: ${data.myElo})`;
+        oppEloEl.innerText = `(Elo: ${data.oppElo})`;
+    }
+    
+    seedNameDisplay.innerText = data.seedType + ' SEED';
+    seedBg.className = `seed-bg seed-${data.seedType}`;
+    
+    btnVoteSkip.disabled = false;
+    btnVoteSkip.innerText = "ĐỔI SEED KHÁC";
+    voteStatusText.innerText = `0/2 người muốn đổi`;
+});
+
+socket.on('intermission_tick', (timeLeft) => {
+    intermissionTimer.innerText = timeLeft;
+});
+
+btnVoteSkip.addEventListener('click', () => {
+    socket.emit('voteSkip');
+    btnVoteSkip.disabled = true;
+    btnVoteSkip.innerText = "ĐÃ VOTE";
+});
+
+socket.on('vote_update', ({votes, total}) => {
+    voteStatusText.innerText = `${votes}/${total} người muốn đổi`;
+});
+
+
 // ================= GAME =================
-socket.on('matchFound', (data) => {
-  clearInterval(findingInterval);
-  lobbyScreen.classList.add('hidden');
+socket.on('game_start', (data) => {
+  intermissionScreen.classList.add('hidden');
   gameScreen.classList.remove('hidden');
+  chatContainer.classList.remove('hidden'); // Show chat box
+  chatMessages.innerHTML = '';
+  addSysMsg('Trận đấu bắt đầu! Ấn Enter để chat.');
   
   boardCols = data.cols;
   boardRows = data.rows;
   totalSafe = data.totalSafe;
-  oppNameEl.innerText = data.oppName;
   
-  if (data.type === 'ranked') {
-      myEloEl.innerText = `(Elo: ${data.myElo})`;
-      oppEloEl.innerText = `(Elo: ${data.oppElo})`;
-  } else {
-      myEloEl.innerText = '';
-      oppEloEl.innerText = '';
-  }
-  
-  p1Bar.style.width = `50%`;
-  p2Bar.style.width = `50%`;
+  p1Bar.style.width = `50%`; p2Bar.style.width = `50%`;
   p1StrikesEl.innerText = `Lỗi: 0/3`;
   isFrozen = false;
   
   createBoard(data.rows, data.cols);
+  
+  // Apply initial reveal
+  data.startReveal.forEach(item => {
+    const el = cells[item.r][item.c];
+    el.classList.add('open');
+    el.innerText = item.val > 0 ? item.val : '';
+    if (item.val > 0) el.classList.add(`val-${item.val}`);
+  });
   
   startTime = Date.now();
   timerInterval = setInterval(updateTimer, 10);
@@ -199,18 +228,13 @@ function createBoard(r, c) {
     for (let j = 0; j < c; j++) {
       const cell = document.createElement('div');
       cell.classList.add('cell');
-      cell.dataset.r = i;
-      cell.dataset.c = j;
+      cell.dataset.r = i; cell.dataset.c = j;
       
       cell.addEventListener('mousedown', (e) => {
         if (isFrozen) return;
-        if (e.button === 0) {
-          socket.emit('clickCell', {r: i, c: j});
-        } else if (e.button === 2) {
-          socket.emit('flagCell', {r: i, c: j});
-        }
+        if (e.button === 0) socket.emit('clickCell', {r: i, c: j});
+        else if (e.button === 2) socket.emit('flagCell', {r: i, c: j});
       });
-      
       cell.addEventListener('contextmenu', e => e.preventDefault());
       
       boardEl.appendChild(cell);
@@ -230,39 +254,28 @@ function updateTimer() {
 
 socket.on('reveal', (revealedArr) => {
   revealedArr.forEach(item => {
-    const {r, c, val} = item;
-    const el = cells[r][c];
+    const el = cells[item.r][item.c];
     if (!el.classList.contains('open')) {
-      el.classList.add('open');
-      el.classList.remove('flag');
-      el.innerText = val > 0 ? val : (val === -1 ? '💣' : '');
-      if (val > 0) el.classList.add(`val-${val}`);
+      el.classList.add('open'); el.classList.remove('flag');
+      el.innerText = item.val > 0 ? item.val : (item.val === -1 ? '💣' : '');
+      if (item.val > 0) el.classList.add(`val-${item.val}`);
     }
   });
 });
 
 socket.on('flagResult', ({r, c, isFlagged}) => {
   const el = cells[r][c];
-  if (isFlagged) {
-    el.classList.add('flag');
-    el.innerText = '🚩';
-  } else {
-    el.classList.remove('flag');
-    el.innerText = '';
-  }
+  if (isFlagged) { el.classList.add('flag'); el.innerText = '🚩'; } 
+  else { el.classList.remove('flag'); el.innerText = ''; }
 });
 
 socket.on('progressUpdate', (prog) => {
   let myProg = prog[myId] || 0;
   let oppProg = 0;
-  for(let pid in prog) {
-    if(pid !== myId) oppProg = prog[pid];
-  }
-
+  for(let pid in prog) if(pid !== myId) oppProg = prog[pid];
   let total = Math.max(myProg + oppProg, 1);
   let balance = 50 + ((myProg - oppProg) / totalSafe) * 50;
-  p1Bar.style.width = `${balance}%`;
-  p2Bar.style.width = `${100 - balance}%`;
+  p1Bar.style.width = `${balance}%`; p2Bar.style.width = `${100 - balance}%`;
 });
 
 socket.on('strike', ({strikes, freezeMs}) => {
@@ -278,9 +291,7 @@ socket.on('strike', ({strikes, freezeMs}) => {
   let intv = setInterval(() => {
     left -= 0.1;
     if (left <= 0) {
-      clearInterval(intv);
-      freezeOverlay.classList.add('hidden');
-      isFrozen = false;
+      clearInterval(intv); freezeOverlay.classList.add('hidden'); isFrozen = false;
     } else {
       freezeOverlay.innerText = `PHẠT LỖI: ĐÓNG BĂNG ${left.toFixed(1)}s`;
     }
@@ -288,17 +299,13 @@ socket.on('strike', ({strikes, freezeMs}) => {
 });
 
 socket.on('opponentStrike', ({r, c}) => {
-  p2StatusEl.innerText = 'Đang bị đóng băng!';
-  p2StatusEl.style.color = '#ef4444';
-  
+  p2StatusEl.innerText = 'Đang bị đóng băng!'; p2StatusEl.style.color = '#ef4444';
   if(cells[r][c]) {
     cells[r][c].classList.add('ping');
     setTimeout(() => cells[r][c].classList.remove('ping'), 500);
   }
-
   setTimeout(() => {
-    p2StatusEl.innerText = 'Bình thường';
-    p2StatusEl.style.color = 'inherit';
+    p2StatusEl.innerText = 'Bình thường'; p2StatusEl.style.color = 'inherit';
   }, 5000);
 });
 
@@ -309,18 +316,52 @@ socket.on('gameOver', ({winner, reason}) => {
   isFrozen = true;
   
   if (winner === myId) {
-    gameResultText.innerText = `BẠN THẮNG! ${reason}`;
-    gameResultText.style.color = 'var(--success)';
+    gameResultText.innerText = `BẠN THẮNG! ${reason}`; gameResultText.style.color = 'var(--success)';
   } else {
-    gameResultText.innerText = `BẠN THUA! ${reason}`;
-    gameResultText.style.color = 'var(--danger)';
+    gameResultText.innerText = `BẠN THUA! ${reason}`; gameResultText.style.color = 'var(--danger)';
   }
   gameMessage.classList.remove('hidden');
-  
-  // Refresh elo from server
-  socket.emit('auth', myUsername);
+  socket.emit('auth', myUsername); // Refresh elo
 });
 
 btnReturnLobby.addEventListener('click', () => {
     showLobby(myUsername, myCurrentElo);
+});
+
+
+// ================= CHAT SYSTEM =================
+function addSysMsg(text) {
+    const div = document.createElement('div');
+    div.className = 'chat-msg chat-sys';
+    div.innerText = `[Hệ thống] ${text}`;
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function addChatMsg(user, text) {
+    const div = document.createElement('div');
+    div.className = 'chat-msg';
+    div.innerHTML = `<span class="chat-user">${user}:</span> ${text}`;
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+socket.on('chat_msg', ({user, text}) => {
+    addChatMsg(user, text);
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        if (!gameScreen.classList.contains('hidden')) {
+            if (document.activeElement === chatInput) {
+                // Send message
+                const txt = chatInput.value.trim();
+                if (txt) socket.emit('chat_msg', txt);
+                chatInput.value = '';
+                chatInput.blur(); // Unfocus
+            } else {
+                chatInput.focus();
+            }
+        }
+    }
 });

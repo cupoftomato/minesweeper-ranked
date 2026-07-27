@@ -19,11 +19,9 @@ if (fs.existsSync(USERS_FILE)) {
     try { usersDB = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')); }
     catch (e) { usersDB = {}; }
 }
-
 function saveDB() {
     fs.writeFileSync(USERS_FILE, JSON.stringify(usersDB, null, 2));
 }
-
 function hashPassword(password) {
     return crypto.createHash('sha256').update(password).digest('hex');
 }
@@ -37,7 +35,6 @@ app.post('/api/register', (req, res) => {
     saveDB();
     res.json({ success: true, username, elo: 1200 });
 });
-
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     const user = usersDB[username];
@@ -45,117 +42,211 @@ app.post('/api/login', (req, res) => {
     res.json({ success: true, username, elo: user.elo });
 });
 
-
-// Game configurations
-const MODES = {
-  easy: { r: 8, c: 10, m: 10 },
-  medium: { r: 14, c: 16, m: 35 },
-  hard: { r: 18, c: 20, m: 75 }
-};
+// Game Config
+const ROWS = 16, COLS = 16, MINES = 50;
+const TOTAL_SAFE = ROWS * COLS - MINES;
+const SEED_TYPES = ['Open', 'Isolated', 'Edge-Heavy', 'Center-Heavy', 'Linear', 'Symmetric', 'Trap'];
 
 const rooms = {};
 const socketUsers = {}; 
 
-// Queues mapped by mode
-let normalQueue = { easy: [], medium: [], hard: [] };
-let rankedQueue = { easy: [], medium: [], hard: [] };
+let normalQueue = [];
+let rankedQueue = [];
 
 function getElo(username) {
-  if (!usersDB[username]) return 1200;
-  return usersDB[username].elo;
+  return usersDB[username] ? usersDB[username].elo : 1200;
 }
-
 function updateElo(winnerUser, loserUser) {
   if (!winnerUser || !loserUser || !usersDB[winnerUser] || !usersDB[loserUser]) return;
-  let winnerElo = usersDB[winnerUser].elo;
-  let loserElo = usersDB[loserUser].elo;
-  let expectedWinner = 1 / (1 + Math.pow(10, (loserElo - winnerElo) / 400));
-  let expectedLoser = 1 / (1 + Math.pow(10, (winnerElo - loserElo) / 400));
-  usersDB[winnerUser].elo = Math.round(winnerElo + 32 * (1 - expectedWinner));
-  usersDB[loserUser].elo = Math.round(loserElo + 32 * (0 - expectedLoser));
+  let wE = usersDB[winnerUser].elo, lE = usersDB[loserUser].elo;
+  let expectedW = 1 / (1 + Math.pow(10, (lE - wE) / 400));
+  let expectedL = 1 / (1 + Math.pow(10, (wE - lE) / 400));
+  usersDB[winnerUser].elo = Math.round(wE + 32 * (1 - expectedW));
+  usersDB[loserUser].elo = Math.round(lE + 32 * (0 - expectedL));
   saveDB();
 }
 
-// Matchmaking Loop
+// Matchmaking
 setInterval(() => {
-  ['easy', 'medium', 'hard'].forEach(diff => {
-    let q = rankedQueue[diff];
-    q.sort((a, b) => getElo(socketUsers[a]) - getElo(socketUsers[b]));
-    while (q.length >= 2) {
-      let p1 = q.shift();
-      let p2 = q.shift();
-      createMatch(p1, p2, 'ranked', diff);
-    }
-  });
+  rankedQueue.sort((a, b) => getElo(socketUsers[a]) - getElo(socketUsers[b]));
+  while (rankedQueue.length >= 2) {
+    let p1 = rankedQueue.shift(); let p2 = rankedQueue.shift();
+    createIntermission(p1, p2, 'ranked');
+  }
 }, 2000);
 
-function createMatch(p1Id, p2Id, type, difficulty) {
+function getRandomSeedType() {
+    return SEED_TYPES[Math.floor(Math.random() * SEED_TYPES.length)];
+}
+
+function createIntermission(p1Id, p2Id, type) {
   let roomId = crypto.randomUUID();
-  const conf = MODES[difficulty];
-  const TOTAL_SAFE = conf.r * conf.c - conf.m;
+  let seedType = getRandomSeedType();
   
   rooms[roomId] = {
-    id: roomId, type: type, diff: difficulty, conf: conf, players: {}, status: 'playing',
-    masterGrid: generateMasterBoard(conf.r, conf.c, conf.m)
+    id: roomId, type: type, seedType: seedType, players: {}, status: 'intermission',
+    votes: {}, skipTimer: null
   };
   const room = rooms[roomId];
-  const startCell = getSafeStart(room.masterGrid, conf.r, conf.c);
 
   [p1Id, p2Id].forEach(pid => {
-    room.players[pid] = {
-      id: pid, username: socketUsers[pid],
-      openedGrid: Array(conf.r).fill().map(() => Array(conf.c).fill(false)),
-      flagsGrid: Array(conf.r).fill().map(() => Array(conf.c).fill(false)),
-      progress: 0, strikes: 0, frozenUntil: 0
-    };
-    
-    let initialReveal = floodFill(room.masterGrid, startCell.r, startCell.c, room.players[pid].openedGrid, conf.r, conf.c);
-    room.players[pid].progress = initialReveal.length;
-
+    room.players[pid] = { id: pid, username: socketUsers[pid], openedGrid: [], flagsGrid: [], progress: 0, strikes: 0, frozenUntil: 0 };
     const sock = io.sockets.sockets.get(pid);
     if(sock) {
       sock.join(roomId); sock.roomId = roomId;
       let oppId = pid === p1Id ? p2Id : p1Id;
-      sock.emit('matchFound', {
-        roomId: roomId, type: type, diff: difficulty,
-        myElo: getElo(socketUsers[pid]),
-        oppElo: getElo(socketUsers[oppId]),
-        oppName: socketUsers[oppId],
-        rows: conf.r, cols: conf.c, totalSafe: TOTAL_SAFE
+      sock.emit('intermission_start', {
+        roomId: roomId, seedType: room.seedType,
+        myElo: getElo(socketUsers[pid]), oppElo: getElo(socketUsers[oppId]), oppName: socketUsers[oppId]
       });
-      
-      let revealed = [];
-      for(let r=0; r<conf.r; r++)
-          for(let c=0; c<conf.c; c++)
-              if(room.players[pid].openedGrid[r][c]) revealed.push({r, c, val: room.masterGrid[r][c]});
-      
-      sock.emit('reveal', revealed);
     }
   });
-  updateProgress(room);
+
+  startIntermissionTimer(room);
 }
 
-function generateMasterBoard(ROWS, COLS, MINES) {
+function startIntermissionTimer(room) {
+    let timeLeft = 10;
+    io.to(room.id).emit('intermission_tick', timeLeft);
+    room.skipTimer = setInterval(() => {
+        timeLeft--;
+        if (timeLeft <= 0) {
+            clearInterval(room.skipTimer);
+            startGame(room);
+        } else {
+            io.to(room.id).emit('intermission_tick', timeLeft);
+        }
+    }, 1000);
+}
+
+function handleVoteSkip(room, socketId) {
+    room.votes[socketId] = true;
+    let pCount = Object.keys(room.players).length;
+    let vCount = Object.keys(room.votes).length;
+    
+    io.to(room.id).emit('vote_update', { votes: vCount, total: pCount });
+    
+    if (vCount === pCount) {
+        clearInterval(room.skipTimer);
+        let oldSeed = room.seedType;
+        while(room.seedType === oldSeed) { room.seedType = getRandomSeedType(); }
+        room.votes = {};
+        io.to(room.id).emit('intermission_start', {
+            roomId: room.id, seedType: room.seedType,
+            myElo: 0, oppElo: 0, oppName: '...' // minimal re-emit
+        });
+        startIntermissionTimer(room);
+    }
+}
+
+function startGame(room) {
+    room.status = 'playing';
+    room.masterGrid = generateMasterBoard(room.seedType);
+    const startCell = getSafeStart(room.masterGrid);
+
+    for(let pid in room.players) {
+        let p = room.players[pid];
+        p.openedGrid = Array(ROWS).fill().map(() => Array(COLS).fill(false));
+        p.flagsGrid = Array(ROWS).fill().map(() => Array(COLS).fill(false));
+        p.progress = 0; p.strikes = 0; p.frozenUntil = 0;
+        
+        let initialReveal = floodFill(room.masterGrid, startCell.r, startCell.c, p.openedGrid);
+        p.progress += initialReveal.length;
+        
+        const sock = io.sockets.sockets.get(pid);
+        if(sock) {
+            sock.emit('game_start', { rows: ROWS, cols: COLS, totalSafe: TOTAL_SAFE, startReveal: initialReveal });
+        }
+    }
+    updateProgress(room);
+}
+
+// ================= SEED GENERATORS =================
+function generateMasterBoard(type) {
   let grid = Array(ROWS).fill().map(() => Array(COLS).fill(0));
   let minesPlaced = 0;
-  while (minesPlaced < MINES) {
-    let r = Math.floor(Math.random() * ROWS); let c = Math.floor(Math.random() * COLS);
-    if (grid[r][c] !== -1) { grid[r][c] = -1; minesPlaced++; }
+
+  function countNeighbors(r, c) {
+      let cnt = 0;
+      for (let dr = -1; dr <= 1; dr++)
+        for (let dc = -1; dc <= 1; dc++)
+          if (r+dr >= 0 && r+dr < ROWS && c+dc >= 0 && c+dc < COLS && grid[r+dr][c+dc] === -1) cnt++;
+      return cnt;
   }
+
+  while (minesPlaced < MINES) {
+      let r, c;
+      if (type === 'Edge-Heavy' && minesPlaced < 40) {
+          if (Math.random() > 0.5) {
+              r = Math.random() > 0.5 ? Math.floor(Math.random()*2) : ROWS - 1 - Math.floor(Math.random()*2);
+              c = Math.floor(Math.random()*COLS);
+          } else {
+              c = Math.random() > 0.5 ? Math.floor(Math.random()*2) : COLS - 1 - Math.floor(Math.random()*2);
+              r = Math.floor(Math.random()*ROWS);
+          }
+      } else if (type === 'Center-Heavy' && minesPlaced < 40) {
+          r = 4 + Math.floor(Math.random() * 8);
+          c = 4 + Math.floor(Math.random() * 8);
+      } else if (type === 'Symmetric' && minesPlaced < 25) {
+          r = Math.floor(Math.random() * ROWS);
+          c = Math.floor(Math.random() * (COLS/2)); // Left half
+      } else if (type === 'Symmetric' && minesPlaced >= 25) {
+          break; // Handles mirroring later
+      } else if (type === 'Linear') {
+          // Walk
+          if (minesPlaced === 0 || Math.random() < 0.1) {
+              r = Math.floor(Math.random() * ROWS); c = Math.floor(Math.random() * COLS);
+          } else {
+              // try to step
+              let lastR = -1, lastC = -1;
+              for(let i=0;i<ROWS;i++) for(let j=0;j<COLS;j++) if(grid[i][j]===-1){lastR=i;lastC=j;}
+              const dirs = [[0,1],[0,-1],[1,0],[-1,0]];
+              let dir = dirs[Math.floor(Math.random()*dirs.length)];
+              r = Math.max(0, Math.min(ROWS-1, lastR + dir[0]));
+              c = Math.max(0, Math.min(COLS-1, lastC + dir[1]));
+          }
+      } else if (type === 'Trap' && minesPlaced < 12) {
+          // Place 2x2 blocks against walls
+          r = Math.random() > 0.5 ? 0 : ROWS-2;
+          c = Math.floor(Math.random() * (COLS-2));
+          if (grid[r][c] !== -1) { grid[r][c] = -1; minesPlaced++; }
+          if (grid[r][c+1] !== -1) { grid[r][c+1] = -1; minesPlaced++; }
+          if (grid[r+1][c] !== -1) { grid[r+1][c] = -1; minesPlaced++; }
+          if (grid[r+1][c+1] !== -1) { grid[r+1][c+1] = -1; minesPlaced++; }
+          continue;
+      } else {
+          r = Math.floor(Math.random() * ROWS);
+          c = Math.floor(Math.random() * COLS);
+      }
+
+      if (grid[r][c] === -1) continue;
+
+      if (type === 'Isolated' && countNeighbors(r, c) > 0) continue;
+      if (type === 'Open' && countNeighbors(r, c) >= 1) {
+          // allow max 1 neighbor
+          if (Math.random() < 0.8) continue; 
+      }
+
+      grid[r][c] = -1;
+      minesPlaced++;
+      
+      if (type === 'Symmetric') {
+          grid[r][COLS - 1 - c] = -1;
+          minesPlaced++;
+      }
+  }
+
+  // Calculate numbers
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       if (grid[r][c] === -1) continue;
-      let count = 0;
-      for (let dr = -1; dr <= 1; dr++)
-        for (let dc = -1; dc <= 1; dc++)
-          if (r+dr >= 0 && r+dr < ROWS && c+dc >= 0 && c+dc < COLS && grid[r+dr][c+dc] === -1) count++;
-      grid[r][c] = count;
+      grid[r][c] = countNeighbors(r, c);
     }
   }
   return grid;
 }
 
-function floodFill(grid, r, c, openedGrid, ROWS, COLS) {
+function floodFill(grid, r, c, openedGrid) {
   let revealed = [];
   let queue = [{r, c}];
   while(queue.length > 0) {
@@ -173,7 +264,7 @@ function floodFill(grid, r, c, openedGrid, ROWS, COLS) {
   return revealed;
 }
 
-function getSafeStart(masterGrid, ROWS, COLS) {
+function getSafeStart(masterGrid) {
   let safeCells = [];
   for(let r=0; r<ROWS; r++) for(let c=0; c<COLS; c++) if(masterGrid[r][c] === 0) safeCells.push({r, c});
   if(safeCells.length===0) for(let r=0; r<ROWS; r++) for(let c=0; c<COLS; c++) if(masterGrid[r][c] !== -1) safeCells.push({r, c});
@@ -189,30 +280,22 @@ function updateProgress(room) {
 function handleWin(room, winnerId, reason) {
   if (room.status === 'ended') return;
   room.status = 'ended';
-  
   let loserId = Object.keys(room.players).find(id => id !== winnerId);
-  
   let p1EloStr = "", p2EloStr = "";
   if (room.type === 'ranked' && loserId) {
-    let wUser = room.players[winnerId].username;
-    let lUser = room.players[loserId].username;
-    let oldW = getElo(wUser); let oldL = getElo(lUser);
-    
+    let wUser = room.players[winnerId].username, lUser = room.players[loserId].username;
+    let oldW = getElo(wUser), oldL = getElo(lUser);
     updateElo(wUser, lUser);
-    
     p1EloStr = ` (+${getElo(wUser) - oldW} Elo)`;
     p2EloStr = ` (${getElo(lUser) - oldL} Elo)`;
   }
-
   io.to(winnerId).emit('gameOver', { winner: winnerId, reason: reason + p1EloStr });
   if (loserId) io.to(loserId).emit('gameOver', { winner: winnerId, reason: reason + p2EloStr });
 }
 
 function removeFromAllQueues(socketId) {
-  ['easy','medium','hard'].forEach(d => {
-    normalQueue[d] = normalQueue[d].filter(id => id !== socketId);
-    rankedQueue[d] = rankedQueue[d].filter(id => id !== socketId);
-  });
+    normalQueue = normalQueue.filter(id => id !== socketId);
+    rankedQueue = rankedQueue.filter(id => id !== socketId);
 }
 
 io.on('connection', (socket) => {
@@ -226,23 +309,30 @@ io.on('connection', (socket) => {
       removeFromAllQueues(socket.id);
   });
 
-  socket.on('findMatch', ({type, diff}) => {
-    if (!socketUsers[socket.id] || !MODES[diff]) return;
+  socket.on('findMatch', (type) => {
+    if (!socketUsers[socket.id]) return;
     removeFromAllQueues(socket.id);
-
     if (type === 'normal') {
-      normalQueue[diff].push(socket.id);
-      if (normalQueue[diff].length >= 2) {
-        let p1 = normalQueue[diff].shift(); let p2 = normalQueue[diff].shift();
-        createMatch(p1, p2, 'normal', diff);
+      normalQueue.push(socket.id);
+      if (normalQueue.length >= 2) {
+        createIntermission(normalQueue.shift(), normalQueue.shift(), 'normal');
       }
     } else if (type === 'ranked') {
-      rankedQueue[diff].push(socket.id);
+      rankedQueue.push(socket.id);
     }
   });
 
-  socket.on('cancelMatch', () => {
-    removeFromAllQueues(socket.id);
+  socket.on('cancelMatch', () => removeFromAllQueues(socket.id));
+  
+  socket.on('voteSkip', () => {
+      if (!socket.roomId) return;
+      const room = rooms[socket.roomId];
+      if (room && room.status === 'intermission') handleVoteSkip(room, socket.id);
+  });
+  
+  socket.on('chat_msg', (msg) => {
+      if (!socket.roomId || !socketUsers[socket.id] || !msg) return;
+      io.to(socket.roomId).emit('chat_msg', { user: socketUsers[socket.id], text: msg });
   });
 
   socket.on('clickCell', ({r, c}) => {
@@ -265,12 +355,11 @@ io.on('connection', (socket) => {
           socket.to(room.id).emit('opponentStrike', {r, c});
       }
     } else {
-      let revealed = floodFill(room.masterGrid, r, c, p.openedGrid, room.conf.r, room.conf.c);
+      let revealed = floodFill(room.masterGrid, r, c, p.openedGrid);
       p.progress += revealed.length;
       socket.emit('reveal', revealed);
       socket.to(room.id).emit('opponentPing', {r, c});
       updateProgress(room);
-      const TOTAL_SAFE = room.conf.r * room.conf.c - room.conf.m;
       if (p.progress === TOTAL_SAFE) handleWin(room, socket.id, 'Hoàn thành bản đồ!');
     }
   });
@@ -292,6 +381,11 @@ io.on('connection', (socket) => {
         let winnerId = Object.keys(room.players).find(id => id !== socket.id);
         if (room.status === 'playing' && winnerId) {
             handleWin(room, winnerId, 'Đối thủ mất kết nối!');
+        } else if (room.status === 'intermission') {
+            clearInterval(room.skipTimer);
+            if(winnerId) {
+                io.to(winnerId).emit('gameOver', {winner: winnerId, reason: 'Đối thủ thoát khi chờ.'});
+            }
         }
         delete rooms[socket.roomId];
     }
@@ -300,4 +394,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => { console.log(`Server running on port ${PORT}`); });
+server.listen(PORT, () => { console.log(`Server on port ${PORT}`); });
