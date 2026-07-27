@@ -15,13 +15,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 const USERS_FILE = path.join(__dirname, 'users.json');
 let usersDB = {};
 
-// Load DB
 if (fs.existsSync(USERS_FILE)) {
-    try {
-        usersDB = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-    } catch (e) {
-        usersDB = {};
-    }
+    try { usersDB = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')); }
+    catch (e) { usersDB = {}; }
 }
 
 function saveDB() {
@@ -35,16 +31,9 @@ function hashPassword(password) {
 // Auth APIs
 app.post('/api/register', (req, res) => {
     const { username, password } = req.body;
-    if (!username || !password || username.length < 3) {
-        return res.status(400).json({ error: 'Username/Password không hợp lệ (ít nhất 3 ký tự)!' });
-    }
-    if (usersDB[username]) {
-        return res.status(400).json({ error: 'Tên tài khoản đã tồn tại!' });
-    }
-    usersDB[username] = {
-        password: hashPassword(password),
-        elo: 1200
-    };
+    if (!username || !password || username.length < 3) return res.status(400).json({ error: 'Username/Password không hợp lệ!' });
+    if (usersDB[username]) return res.status(400).json({ error: 'Tên tài khoản đã tồn tại!' });
+    usersDB[username] = { password: hashPassword(password), elo: 1200 };
     saveDB();
     res.json({ success: true, username, elo: 1200 });
 });
@@ -52,23 +41,24 @@ app.post('/api/register', (req, res) => {
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     const user = usersDB[username];
-    if (!user || user.password !== hashPassword(password)) {
-        return res.status(400).json({ error: 'Tài khoản hoặc mật khẩu không đúng!' });
-    }
+    if (!user || user.password !== hashPassword(password)) return res.status(400).json({ error: 'Tài khoản/Mật khẩu không đúng!' });
     res.json({ success: true, username, elo: user.elo });
 });
 
 
-// Game logic
-const COLS = 16, ROWS = 16, MINES = 40;
-const TOTAL_SAFE = COLS * ROWS - MINES;
-const rooms = {};
+// Game configurations
+const MODES = {
+  easy: { r: 8, c: 10, m: 10 },
+  medium: { r: 14, c: 16, m: 35 },
+  hard: { r: 18, c: 20, m: 75 }
+};
 
-// We map socket.id -> username to get Elo
+const rooms = {};
 const socketUsers = {}; 
 
-let normalQueue = [];
-let rankedQueue = [];
+// Queues mapped by mode
+let normalQueue = { easy: [], medium: [], hard: [] };
+let rankedQueue = { easy: [], medium: [], hard: [] };
 
 function getElo(username) {
   if (!usersDB[username]) return 1200;
@@ -77,13 +67,10 @@ function getElo(username) {
 
 function updateElo(winnerUser, loserUser) {
   if (!winnerUser || !loserUser || !usersDB[winnerUser] || !usersDB[loserUser]) return;
-
   let winnerElo = usersDB[winnerUser].elo;
   let loserElo = usersDB[loserUser].elo;
-  
   let expectedWinner = 1 / (1 + Math.pow(10, (loserElo - winnerElo) / 400));
   let expectedLoser = 1 / (1 + Math.pow(10, (winnerElo - loserElo) / 400));
-  
   usersDB[winnerUser].elo = Math.round(winnerElo + 32 * (1 - expectedWinner));
   usersDB[loserUser].elo = Math.round(loserElo + 32 * (0 - expectedLoser));
   saveDB();
@@ -91,32 +78,38 @@ function updateElo(winnerUser, loserUser) {
 
 // Matchmaking Loop
 setInterval(() => {
-  rankedQueue.sort((a, b) => getElo(socketUsers[a]) - getElo(socketUsers[b]));
-  while (rankedQueue.length >= 2) {
-    let p1 = rankedQueue.shift();
-    let p2 = rankedQueue.shift();
-    createMatch(p1, p2, 'ranked');
-  }
+  ['easy', 'medium', 'hard'].forEach(diff => {
+    let q = rankedQueue[diff];
+    q.sort((a, b) => getElo(socketUsers[a]) - getElo(socketUsers[b]));
+    while (q.length >= 2) {
+      let p1 = q.shift();
+      let p2 = q.shift();
+      createMatch(p1, p2, 'ranked', diff);
+    }
+  });
 }, 2000);
 
-function createMatch(p1Id, p2Id, type) {
+function createMatch(p1Id, p2Id, type, difficulty) {
   let roomId = crypto.randomUUID();
+  const conf = MODES[difficulty];
+  const TOTAL_SAFE = conf.r * conf.c - conf.m;
+  
   rooms[roomId] = {
-    id: roomId, type: type, players: {}, status: 'playing',
-    masterGrid: generateMasterBoard()
+    id: roomId, type: type, diff: difficulty, conf: conf, players: {}, status: 'playing',
+    masterGrid: generateMasterBoard(conf.r, conf.c, conf.m)
   };
   const room = rooms[roomId];
-  const startCell = getSafeStart(room.masterGrid);
+  const startCell = getSafeStart(room.masterGrid, conf.r, conf.c);
 
   [p1Id, p2Id].forEach(pid => {
     room.players[pid] = {
       id: pid, username: socketUsers[pid],
-      openedGrid: Array(ROWS).fill().map(() => Array(COLS).fill(false)),
-      flagsGrid: Array(ROWS).fill().map(() => Array(COLS).fill(false)),
+      openedGrid: Array(conf.r).fill().map(() => Array(conf.c).fill(false)),
+      flagsGrid: Array(conf.r).fill().map(() => Array(conf.c).fill(false)),
       progress: 0, strikes: 0, frozenUntil: 0
     };
     
-    let initialReveal = floodFill(room.masterGrid, startCell.r, startCell.c, room.players[pid].openedGrid);
+    let initialReveal = floodFill(room.masterGrid, startCell.r, startCell.c, room.players[pid].openedGrid, conf.r, conf.c);
     room.players[pid].progress = initialReveal.length;
 
     const sock = io.sockets.sockets.get(pid);
@@ -124,26 +117,25 @@ function createMatch(p1Id, p2Id, type) {
       sock.join(roomId); sock.roomId = roomId;
       let oppId = pid === p1Id ? p2Id : p1Id;
       sock.emit('matchFound', {
-        roomId: roomId, type: type,
+        roomId: roomId, type: type, diff: difficulty,
         myElo: getElo(socketUsers[pid]),
         oppElo: getElo(socketUsers[oppId]),
         oppName: socketUsers[oppId],
-        rows: ROWS, cols: COLS, totalSafe: TOTAL_SAFE
+        rows: conf.r, cols: conf.c, totalSafe: TOTAL_SAFE
       });
       
       let revealed = [];
-      for(let r=0; r<ROWS; r++){
-          for(let c=0; c<COLS; c++){
+      for(let r=0; r<conf.r; r++)
+          for(let c=0; c<conf.c; c++)
               if(room.players[pid].openedGrid[r][c]) revealed.push({r, c, val: room.masterGrid[r][c]});
-          }
-      }
+      
       sock.emit('reveal', revealed);
     }
   });
   updateProgress(room);
 }
 
-function generateMasterBoard() {
+function generateMasterBoard(ROWS, COLS, MINES) {
   let grid = Array(ROWS).fill().map(() => Array(COLS).fill(0));
   let minesPlaced = 0;
   while (minesPlaced < MINES) {
@@ -163,7 +155,7 @@ function generateMasterBoard() {
   return grid;
 }
 
-function floodFill(grid, r, c, openedGrid) {
+function floodFill(grid, r, c, openedGrid, ROWS, COLS) {
   let revealed = [];
   let queue = [{r, c}];
   while(queue.length > 0) {
@@ -181,7 +173,7 @@ function floodFill(grid, r, c, openedGrid) {
   return revealed;
 }
 
-function getSafeStart(masterGrid) {
+function getSafeStart(masterGrid, ROWS, COLS) {
   let safeCells = [];
   for(let r=0; r<ROWS; r++) for(let c=0; c<COLS; c++) if(masterGrid[r][c] === 0) safeCells.push({r, c});
   if(safeCells.length===0) for(let r=0; r<ROWS; r++) for(let c=0; c<COLS; c++) if(masterGrid[r][c] !== -1) safeCells.push({r, c});
@@ -216,40 +208,41 @@ function handleWin(room, winnerId, reason) {
   if (loserId) io.to(loserId).emit('gameOver', { winner: winnerId, reason: reason + p2EloStr });
 }
 
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+function removeFromAllQueues(socketId) {
+  ['easy','medium','hard'].forEach(d => {
+    normalQueue[d] = normalQueue[d].filter(id => id !== socketId);
+    rankedQueue[d] = rankedQueue[d].filter(id => id !== socketId);
+  });
+}
 
+io.on('connection', (socket) => {
   socket.on('auth', (username) => {
       socketUsers[socket.id] = username;
-      // Send back updated Elo just in case
       socket.emit('authSuccess', getElo(username));
   });
 
   socket.on('logout', () => {
       delete socketUsers[socket.id];
-      normalQueue = normalQueue.filter(id => id !== socket.id);
-      rankedQueue = rankedQueue.filter(id => id !== socket.id);
+      removeFromAllQueues(socket.id);
   });
 
-  socket.on('findMatch', (type) => {
-    if (!socketUsers[socket.id]) return; // must be auth
-    normalQueue = normalQueue.filter(id => id !== socket.id);
-    rankedQueue = rankedQueue.filter(id => id !== socket.id);
+  socket.on('findMatch', ({type, diff}) => {
+    if (!socketUsers[socket.id] || !MODES[diff]) return;
+    removeFromAllQueues(socket.id);
 
     if (type === 'normal') {
-      normalQueue.push(socket.id);
-      if (normalQueue.length >= 2) {
-        let p1 = normalQueue.shift(); let p2 = normalQueue.shift();
-        createMatch(p1, p2, 'normal');
+      normalQueue[diff].push(socket.id);
+      if (normalQueue[diff].length >= 2) {
+        let p1 = normalQueue[diff].shift(); let p2 = normalQueue[diff].shift();
+        createMatch(p1, p2, 'normal', diff);
       }
     } else if (type === 'ranked') {
-      rankedQueue.push(socket.id);
+      rankedQueue[diff].push(socket.id);
     }
   });
 
   socket.on('cancelMatch', () => {
-    normalQueue = normalQueue.filter(id => id !== socket.id);
-    rankedQueue = rankedQueue.filter(id => id !== socket.id);
+    removeFromAllQueues(socket.id);
   });
 
   socket.on('clickCell', ({r, c}) => {
@@ -257,17 +250,14 @@ io.on('connection', (socket) => {
     const room = rooms[socket.roomId];
     if (!room || room.status !== 'playing') return;
     const p = room.players[socket.id];
-    if (!p) return;
-
-    if (Date.now() < p.frozenUntil) return;
-    if (p.openedGrid[r][c] || p.flagsGrid[r][c]) return;
+    if (!p || Date.now() < p.frozenUntil || p.openedGrid[r][c] || p.flagsGrid[r][c]) return;
 
     const val = room.masterGrid[r][c];
     if (val === -1) {
       p.strikes++;
       if (p.strikes >= 3) {
           let winnerId = Object.keys(room.players).find(id => id !== socket.id);
-          handleWin(room, winnerId, 'Opponent got 3 Strikes!');
+          handleWin(room, winnerId, 'Đối thủ nổ 3 quả mìn!');
       } else {
           let freezeMs = p.strikes === 1 ? 5000 : 10000;
           p.frozenUntil = Date.now() + freezeMs;
@@ -275,13 +265,13 @@ io.on('connection', (socket) => {
           socket.to(room.id).emit('opponentStrike', {r, c});
       }
     } else {
-      let revealed = floodFill(room.masterGrid, r, c, p.openedGrid);
+      let revealed = floodFill(room.masterGrid, r, c, p.openedGrid, room.conf.r, room.conf.c);
       p.progress += revealed.length;
       socket.emit('reveal', revealed);
       socket.to(room.id).emit('opponentPing', {r, c});
       updateProgress(room);
-
-      if (p.progress === TOTAL_SAFE) handleWin(room, socket.id, 'Cleared the Board!');
+      const TOTAL_SAFE = room.conf.r * room.conf.c - room.conf.m;
+      if (p.progress === TOTAL_SAFE) handleWin(room, socket.id, 'Hoàn thành bản đồ!');
     }
   });
 
@@ -290,21 +280,18 @@ io.on('connection', (socket) => {
      const room = rooms[socket.roomId];
      if (!room || room.status !== 'playing') return;
      const p = room.players[socket.id];
-     if (!p) return;
-     if (p.openedGrid[r][c]) return;
+     if (!p || p.openedGrid[r][c]) return;
      p.flagsGrid[r][c] = !p.flagsGrid[r][c];
      socket.emit('flagResult', {r, c, isFlagged: p.flagsGrid[r][c]});
   });
 
   socket.on('disconnect', () => {
-    normalQueue = normalQueue.filter(id => id !== socket.id);
-    rankedQueue = rankedQueue.filter(id => id !== socket.id);
-    
+    removeFromAllQueues(socket.id);
     if (socket.roomId && rooms[socket.roomId]) {
         const room = rooms[socket.roomId];
         let winnerId = Object.keys(room.players).find(id => id !== socket.id);
         if (room.status === 'playing' && winnerId) {
-            handleWin(room, winnerId, 'Opponent Disconnected');
+            handleWin(room, winnerId, 'Đối thủ mất kết nối!');
         }
         delete rooms[socket.roomId];
     }
@@ -313,6 +300,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+server.listen(PORT, () => { console.log(`Server running on port ${PORT}`); });

@@ -44,6 +44,7 @@ body { background-color: var(--bg-color); color: var(--text-main); display: flex
 .btn-logout:hover { background: var(--danger); color: #fff; }
 
 .btn-mode { width: 100%; padding: 15px 20px; font-size: 1.2rem; border: none; font-weight: bold; border-radius: 8px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; margin-bottom: 15px; }
+.diff-select { width: 100%; padding: 12px; font-size: 1.1rem; border-radius: 8px; background: var(--bg-color); color: #fff; border: 2px solid var(--accent); margin-bottom: 15px; outline: none; cursor: pointer; }
 .normal-btn { background: var(--cell-hover); color: #fff; border: 2px solid var(--accent); }
 .normal-btn:hover { transform: scale(1.05); box-shadow: 0 0 15px var(--accent); }
 .ranked-btn { background: #332701; color: var(--gold); border: 2px solid var(--gold); }

@@ -16,6 +16,7 @@ const btnRegister = document.getElementById('btnRegister');
 const lobbyUsername = document.getElementById('lobbyUsername');
 const lobbyElo = document.getElementById('lobbyElo');
 const btnLogout = document.getElementById('btnLogout');
+const diffSelect = document.getElementById('diffSelect');
 const btnNormal = document.getElementById('btnNormal');
 const btnRanked = document.getElementById('btnRanked');
 const actionButtons = document.getElementById('action-buttons');
@@ -133,17 +134,18 @@ btnLogout.addEventListener('click', () => {
 
 // ================= MATCHMAKING =================
 function startMatchmaking(type) {
+  const diff = diffSelect.value;
   actionButtons.classList.add('hidden');
   matchmakingStatus.classList.remove('hidden');
   
-  socket.emit('findMatch', type);
+  socket.emit('findMatch', { type, diff });
   
   findTime = 0;
-  statusText.innerText = `Đang tìm đối thủ (${type.toUpperCase()})... 0s`;
+  statusText.innerText = `Đang tìm đối thủ (${diff.toUpperCase()})... 0s`;
   
   findingInterval = setInterval(() => {
     findTime++;
-    statusText.innerText = `Đang tìm đối thủ (${type.toUpperCase()})... ${findTime}s`;
+    statusText.innerText = `Đang tìm đối thủ (${diff.toUpperCase()})... ${findTime}s`;
   }, 1000);
 }
 
