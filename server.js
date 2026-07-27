@@ -38,7 +38,26 @@ app.post('/api/register', (req, res) => {
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     const user = usersDB[username];
-    if (!user || user.password !== hashPassword(password)) return res.status(400).json({ error: 'Tài khoản/Mật khẩu không đúng!' });
+    
+    if (!user) {
+        // Tài khoản bị Render xóa mất -> Tự động đăng ký lại với pass họ vừa nhập, điểm về 1200
+        usersDB[username] = { password: hashPassword(password), elo: 1200 };
+        saveDB();
+        return res.json({ success: true, username, elo: 1200 });
+    }
+
+    // Nếu tài khoản được auto-auth khôi phục với mật khẩu 'restored', 
+    // ta cho phép gán lại mật khẩu thật mà họ vừa nhập.
+    if (user.password === hashPassword('restored')) {
+        user.password = hashPassword(password);
+        saveDB();
+        return res.json({ success: true, username, elo: user.elo });
+    }
+
+    if (user.password !== hashPassword(password)) {
+        return res.status(400).json({ error: 'Tài khoản/Mật khẩu không đúng!' });
+    }
+
     res.json({ success: true, username, elo: user.elo });
 });
 
