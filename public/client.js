@@ -56,7 +56,7 @@ const chatInput = document.getElementById('chat-input');
 
 let myId = null;
 let myUsername = localStorage.getItem('ms_username') || '';
-let myCurrentElo = 1200;
+let myCurrentElo = parseInt(localStorage.getItem('ms_elo')) || 1200;
 
 let boardCols = 16, boardRows = 16, totalSafe = 0;
 let cells = [];
@@ -69,16 +69,17 @@ let findTime = 0;
 // ================= AUTHENTICATION =================
 if (myUsername) {
   showLobby(myUsername, "Đang tải...");
-  socket.emit('auth', myUsername);
+  socket.emit('auth', { username: myUsername, elo: myCurrentElo });
 }
 
 socket.on('connect', () => {
   myId = socket.id;
-  if (myUsername) socket.emit('auth', myUsername);
+  if (myUsername) socket.emit('auth', { username: myUsername, elo: myCurrentElo });
 });
 
 socket.on('authSuccess', (elo) => {
     myCurrentElo = elo;
+    localStorage.setItem('ms_elo', elo);
     lobbyElo.innerText = elo;
 });
 
@@ -98,8 +99,9 @@ async function handleAuth(action) {
         if (data.success) {
             myUsername = data.username; myCurrentElo = data.elo;
             localStorage.setItem('ms_username', myUsername);
+            localStorage.setItem('ms_elo', myCurrentElo);
             authScreen.classList.add('hidden');
-            socket.emit('auth', myUsername);
+            socket.emit('auth', { username: myUsername, elo: myCurrentElo });
             showLobby(myUsername, myCurrentElo);
         } else {
             authMessage.innerText = data.error;
@@ -124,6 +126,7 @@ function showLobby(name, elo) {
 btnLogout.addEventListener('click', () => {
     myUsername = ''; myCurrentElo = 1200;
     localStorage.removeItem('ms_username');
+    localStorage.removeItem('ms_elo');
     socket.emit('logout');
     lobbyScreen.classList.add('hidden'); authScreen.classList.remove('hidden');
     usernameInput.value = ''; passwordInput.value = '';
@@ -232,7 +235,14 @@ function createBoard(r, c) {
       
       cell.addEventListener('mousedown', (e) => {
         if (isFrozen) return;
-        if (e.button === 0) socket.emit('clickCell', {r: i, c: j});
+        if (e.button === 0) {
+            // If already open, chord. Else normal click.
+            if (cell.classList.contains('open')) {
+                socket.emit('chordCell', {r: i, c: j});
+            } else {
+                socket.emit('clickCell', {r: i, c: j});
+            }
+        }
         else if (e.button === 2) socket.emit('flagCell', {r: i, c: j});
       });
       cell.addEventListener('contextmenu', e => e.preventDefault());

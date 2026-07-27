@@ -60,14 +60,14 @@ body { background-color: var(--bg-color); color: var(--text-main); display: flex
 
 /* INTERMISSION SCREEN */
 #intermission-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; z-index: 100; overflow: hidden;}
-.seed-bg { position: absolute; top: -50px; left: -50px; right: -50px; bottom: -50px; background-size: cover; background-position: center; filter: blur(20px); opacity: 0.4; z-index: -1; transition: background 1s ease; }
-.seed-bg.seed-Open { background: radial-gradient(circle, #334155 0%, #0f172a 100%); }
-.seed-bg.seed-Isolated { background: repeating-radial-gradient(circle, #ef4444 0px, #0f172a 20px); }
-.seed-bg.seed-Edge-Heavy { background: inset 0 0 150px #ef4444; border: 50px solid #ef4444; }
-.seed-bg.seed-Center-Heavy { background: radial-gradient(circle, #ef4444 10%, #0f172a 60%); }
-.seed-bg.seed-Linear { background: linear-gradient(45deg, #0f172a 40%, #ef4444 50%, #0f172a 60%); }
-.seed-bg.seed-Symmetric { background: linear-gradient(90deg, #ef4444 0%, #0f172a 49%, #0f172a 51%, #ef4444 100%); }
-.seed-bg.seed-Trap { background: conic-gradient(from 45deg, #ef4444, #0f172a, #ef4444, #0f172a, #ef4444); }
+.seed-bg { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-size: cover; background-position: center; filter: blur(5px); opacity: 0.8; z-index: -1; transition: background-image 1s ease; }
+.seed-bg.seed-Open { background-image: url('images/seed_Open.png'); }
+.seed-bg.seed-Isolated { background-image: url('images/seed_Isolated.png'); }
+.seed-bg.seed-Edge-Heavy { background-image: url('images/seed_Edge-Heavy.png'); }
+.seed-bg.seed-Center-Heavy { background-image: url('images/seed_Center-Heavy.png'); }
+.seed-bg.seed-Linear { background-image: url('images/seed_Linear.png'); }
+.seed-bg.seed-Symmetric { background-image: url('images/seed_Symmetric.png'); }
+.seed-bg.seed-Trap { background-image: url('images/seed_Trap.png'); }
 
 .intermission-content { text-align: center; background: rgba(30, 41, 59, 0.85); padding: 3rem; border-radius: 16px; border: 2px solid var(--accent); box-shadow: 0 0 30px rgba(0,0,0,0.8); }
 .intermission-content h2 { font-size: 2.5rem; color: var(--accent); margin-bottom: 20px; text-shadow: 0 0 15px var(--accent); }

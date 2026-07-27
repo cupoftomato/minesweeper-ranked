@@ -299,7 +299,21 @@ function removeFromAllQueues(socketId) {
 }
 
 io.on('connection', (socket) => {
-  socket.on('auth', (username) => {
+  socket.on('auth', (data) => {
+      let username, oldElo = null;
+      if (typeof data === 'object') {
+          username = data.username;
+          oldElo = data.elo;
+      } else {
+          username = data;
+      }
+      
+      if (!usersDB[username] && oldElo !== null) {
+          // Server Amnesia Fallback: Re-register transparently
+          usersDB[username] = { password: hashPassword('restored'), elo: oldElo };
+          saveDB();
+      }
+      
       socketUsers[socket.id] = username;
       socket.emit('authSuccess', getElo(username));
   });
@@ -361,6 +375,85 @@ io.on('connection', (socket) => {
       socket.to(room.id).emit('opponentPing', {r, c});
       updateProgress(room);
       if (p.progress === TOTAL_SAFE) handleWin(room, socket.id, 'Hoàn thành bản đồ!');
+    }
+  });
+
+  socket.on('chordCell', ({r, c}) => {
+    if (!socket.roomId) return;
+    const room = rooms[socket.roomId];
+    if (!room || room.status !== 'playing') return;
+    const p = room.players[socket.id];
+    if (!p || Date.now() < p.frozenUntil || !p.openedGrid[r][c] || p.flagsGrid[r][c]) return;
+
+    const val = room.masterGrid[r][c];
+    if (val <= 0) return; // Only numbers can be chorded
+
+    // Count flags around
+    let flagCount = 0;
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        let nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && p.flagsGrid[nr][nc]) {
+          flagCount++;
+        }
+      }
+    }
+
+    // If flags match the number, open surrounding unflagged cells
+    if (flagCount === val) {
+      let struck = false;
+      let revealed = [];
+      let toOpen = [];
+
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          let nr = r + dr, nc = c + dc;
+          if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && !p.openedGrid[nr][nc] && !p.flagsGrid[nr][nc]) {
+            if (room.masterGrid[nr][nc] === -1) {
+              struck = true;
+              break;
+            } else {
+              toOpen.push({r: nr, c: nc});
+            }
+          }
+        }
+        if (struck) break;
+      }
+
+      if (struck) {
+        p.strikes++;
+        if (p.strikes >= 3) {
+            let winnerId = Object.keys(room.players).find(id => id !== socket.id);
+            handleWin(room, winnerId, 'Đối thủ nổ 3 quả mìn (Cắm cờ sai)!');
+        } else {
+            let freezeMs = p.strikes === 1 ? 5000 : 10000;
+            p.frozenUntil = Date.now() + freezeMs;
+            socket.emit('strike', { strikes: p.strikes, freezeMs });
+            socket.to(room.id).emit('opponentStrike', {r, c});
+        }
+      } else {
+        // Safe to open
+        toOpen.forEach(cell => {
+          let res = floodFill(room.masterGrid, cell.r, cell.c, p.openedGrid);
+          revealed = revealed.concat(res);
+        });
+        
+        // Remove duplicates if flood fill overlapped
+        let uniqueRev = [];
+        let seen = new Set();
+        revealed.forEach(cell => {
+            let key = `${cell.r},${cell.c}`;
+            if (!seen.has(key)) { seen.add(key); uniqueRev.push(cell); }
+        });
+
+        if (uniqueRev.length > 0) {
+          p.progress += uniqueRev.length;
+          socket.emit('reveal', uniqueRev);
+          socket.to(room.id).emit('opponentPing', {r, c});
+          updateProgress(room);
+          if (p.progress === TOTAL_SAFE) handleWin(room, socket.id, 'Hoàn thành bản đồ!');
+        }
+      }
     }
   });
 
