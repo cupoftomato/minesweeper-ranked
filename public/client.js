@@ -1,10 +1,20 @@
 const socket = io();
 
-// DOM Elements
+// DOM Elements - Screens
+const authScreen = document.getElementById('auth-screen');
 const lobbyScreen = document.getElementById('lobby-screen');
 const gameScreen = document.getElementById('game-screen');
 
-// Matchmaking
+// Auth DOM
+const usernameInput = document.getElementById('usernameInput');
+const passwordInput = document.getElementById('passwordInput');
+const authMessage = document.getElementById('authMessage');
+const btnLogin = document.getElementById('btnLogin');
+const btnRegister = document.getElementById('btnRegister');
+
+// Lobby DOM
+const lobbyUsername = document.getElementById('lobbyUsername');
+const lobbyElo = document.getElementById('lobbyElo');
 const btnNormal = document.getElementById('btnNormal');
 const btnRanked = document.getElementById('btnRanked');
 const actionButtons = document.getElementById('action-buttons');
@@ -19,13 +29,19 @@ const p1StrikesEl = document.getElementById('p1-strikes');
 const p2StatusEl = document.getElementById('p2-status');
 const timerDisplay = document.getElementById('timerDisplay');
 const gameMessage = document.getElementById('gameMessage');
+const gameResultText = document.getElementById('gameResultText');
+const btnReturnLobby = document.getElementById('btnReturnLobby');
 const p1Bar = document.getElementById('p1-bar');
 const p2Bar = document.getElementById('p2-bar');
 const freezeOverlay = document.getElementById('freeze-overlay');
 const myEloEl = document.getElementById('my-elo');
 const oppEloEl = document.getElementById('opp-elo');
+const oppNameEl = document.getElementById('opp-name');
 
 let myId = null;
+let myUsername = localStorage.getItem('ms_username') || '';
+let myCurrentElo = 1200;
+
 let boardCols = 16, boardRows = 16, totalSafe = 0;
 let cells = [];
 let timerInterval = null;
@@ -34,12 +50,77 @@ let isFrozen = false;
 let findingInterval = null;
 let findTime = 0;
 
-// Connect
+// ================= AUTHENTICATION =================
+if (myUsername) {
+  // Assume already logged in (no strict token validation for MVP)
+  showLobby(myUsername, "Đang tải...");
+  socket.emit('auth', myUsername);
+}
+
 socket.on('connect', () => {
   myId = socket.id;
+  if (myUsername) {
+    socket.emit('auth', myUsername);
+  }
 });
 
-// Start Matchmaking
+socket.on('authSuccess', (elo) => {
+    myCurrentElo = elo;
+    lobbyElo.innerText = elo;
+});
+
+async function handleAuth(action) {
+    const user = usernameInput.value.trim();
+    const pass = passwordInput.value.trim();
+    if (!user || !pass) {
+        authMessage.innerText = 'Vui lòng nhập tên và mật khẩu!';
+        authMessage.classList.remove('hidden');
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/${action}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: user, password: pass })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            myUsername = data.username;
+            myCurrentElo = data.elo;
+            localStorage.setItem('ms_username', myUsername);
+            authScreen.classList.add('hidden');
+            socket.emit('auth', myUsername);
+            showLobby(myUsername, myCurrentElo);
+        } else {
+            authMessage.innerText = data.error;
+            authMessage.classList.remove('hidden');
+        }
+    } catch (e) {
+        authMessage.innerText = 'Lỗi kết nối Server!';
+        authMessage.classList.remove('hidden');
+    }
+}
+
+btnLogin.addEventListener('click', () => handleAuth('login'));
+btnRegister.addEventListener('click', () => handleAuth('register'));
+
+function showLobby(name, elo) {
+    authScreen.classList.add('hidden');
+    gameScreen.classList.add('hidden');
+    lobbyScreen.classList.remove('hidden');
+    lobbyUsername.innerText = name;
+    lobbyElo.innerText = elo;
+    
+    // reset UI
+    actionButtons.classList.remove('hidden');
+    matchmakingStatus.classList.add('hidden');
+    gameMessage.classList.add('hidden');
+}
+
+
+// ================= MATCHMAKING =================
 function startMatchmaking(type) {
   actionButtons.classList.add('hidden');
   matchmakingStatus.classList.remove('hidden');
@@ -65,7 +146,7 @@ btnCancel.addEventListener('click', () => {
   actionButtons.classList.remove('hidden');
 });
 
-// Game Found
+// ================= GAME =================
 socket.on('matchFound', (data) => {
   clearInterval(findingInterval);
   lobbyScreen.classList.add('hidden');
@@ -74,6 +155,7 @@ socket.on('matchFound', (data) => {
   boardCols = data.cols;
   boardRows = data.rows;
   totalSafe = data.totalSafe;
+  oppNameEl.innerText = data.oppName;
   
   if (data.type === 'ranked') {
       myEloEl.innerText = `(Elo: ${data.myElo})`;
@@ -83,13 +165,17 @@ socket.on('matchFound', (data) => {
       oppEloEl.innerText = '';
   }
   
+  p1Bar.style.width = `50%`;
+  p2Bar.style.width = `50%`;
+  p1StrikesEl.innerText = `Lỗi: 0/3`;
+  isFrozen = false;
+  
   createBoard(data.rows, data.cols);
   
   startTime = Date.now();
   timerInterval = setInterval(updateTimer, 10);
 });
 
-// Create HTML Grid
 function createBoard(r, c) {
   boardEl.innerHTML = '';
   boardEl.style.gridTemplateColumns = `repeat(${c}, 32px)`;
@@ -129,7 +215,6 @@ function updateTimer() {
   timerDisplay.innerText = `${mins}:${secs}.${ms}`;
 }
 
-// Handle reveals
 socket.on('reveal', (revealedArr) => {
   revealedArr.forEach(item => {
     const {r, c, val} = item;
@@ -143,7 +228,6 @@ socket.on('reveal', (revealedArr) => {
   });
 });
 
-// Handle flagging
 socket.on('flagResult', ({r, c, isFlagged}) => {
   const el = cells[r][c];
   if (isFlagged) {
@@ -155,7 +239,6 @@ socket.on('flagResult', ({r, c, isFlagged}) => {
   }
 });
 
-// Update Progress Bars
 socket.on('progressUpdate', (prog) => {
   let myProg = prog[myId] || 0;
   let oppProg = 0;
@@ -169,7 +252,6 @@ socket.on('progressUpdate', (prog) => {
   p2Bar.style.width = `${100 - balance}%`;
 });
 
-// Strikes & Freeze
 socket.on('strike', ({strikes, freezeMs}) => {
   p1StrikesEl.innerText = `Lỗi: ${strikes}/3`;
   document.querySelector('.board-container').classList.add('shake');
@@ -214,11 +296,18 @@ socket.on('gameOver', ({winner, reason}) => {
   isFrozen = true;
   
   if (winner === myId) {
-    gameMessage.innerText = `BẠN THẮNG! ${reason}`;
-    gameMessage.style.color = 'var(--success)';
+    gameResultText.innerText = `BẠN THẮNG! ${reason}`;
+    gameResultText.style.color = 'var(--success)';
   } else {
-    gameMessage.innerText = `BẠN THUA! ${reason}`;
-    gameMessage.style.color = 'var(--danger)';
+    gameResultText.innerText = `BẠN THUA! ${reason}`;
+    gameResultText.style.color = 'var(--danger)';
   }
   gameMessage.classList.remove('hidden');
+  
+  // Refresh elo from server
+  socket.emit('auth', myUsername);
+});
+
+btnReturnLobby.addEventListener('click', () => {
+    showLobby(myUsername, myCurrentElo);
 });

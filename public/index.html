@@ -7,13 +7,37 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="lobby-screen">
+  
+  <!-- AUTH SCREEN -->
+  <div id="auth-screen">
     <div class="logo">
       <h1>MINESWEEPER <span class="ranked">RANKED</span></h1>
       <p>Esports Edition</p>
     </div>
+    <div class="auth-box">
+      <h2>Đăng nhập / Đăng ký</h2>
+      <input type="text" id="usernameInput" placeholder="Tên đăng nhập (Username)" autocomplete="off">
+      <input type="password" id="passwordInput" placeholder="Mật khẩu (Password)">
+      <p id="authMessage" class="error hidden"></p>
+      <div class="auth-buttons">
+        <button id="btnLogin" class="btn-primary">Đăng Nhập</button>
+        <button id="btnRegister" class="btn-secondary">Tạo Tài Khoản</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOBBY SCREEN -->
+  <div id="lobby-screen" class="hidden">
+    <div class="logo">
+      <h1>MINESWEEPER <span class="ranked">RANKED</span></h1>
+    </div>
     
     <div class="lobby-box">
+      <div class="user-profile">
+         Xin chào, <span id="lobbyUsername" class="accent-text"></span>!<br>
+         Elo hiện tại: <span id="lobbyElo" class="gold-text"></span>
+      </div>
+
       <div id="action-buttons">
         <button id="btnNormal" class="btn-mode normal-btn">PLAY NORMAL</button>
         <button id="btnRanked" class="btn-mode ranked-btn">PLAY RANKED</button>
@@ -29,37 +53,34 @@
     </div>
   </div>
 
+  <!-- GAME SCREEN -->
   <div id="game-screen" class="hidden">
-    <!-- Header: HUD -->
     <div class="hud">
       <div class="player-info p1-info">
         <div class="name">BẠN <span id="my-elo"></span></div>
         <div class="strikes" id="p1-strikes">Lỗi: 0/3</div>
       </div>
-
-      <!-- Tug of war progress -->
       <div class="tug-of-war">
          <div class="tug-bar" id="p1-bar" style="width: 50%;"></div>
          <div class="tug-bar" id="p2-bar" style="width: 50%;"></div>
       </div>
-
       <div class="player-info p2-info">
-        <div class="name">ĐỐI THỦ <span id="opp-elo"></span></div>
+        <div class="name"><span id="opp-name">ĐỐI THỦ</span> <span id="opp-elo"></span></div>
         <div class="strikes">Trạng thái: <span id="p2-status">Bình thường</span></div>
       </div>
     </div>
     
-    <!-- Timer -->
     <div class="timer" id="timerDisplay">00:00.000</div>
 
-    <!-- Main Game Area -->
     <div class="board-container">
       <div id="freeze-overlay" class="hidden">ĐÓNG BĂNG PHẠT LỖI</div>
       <div id="minesweeper-board"></div>
     </div>
 
-    <!-- Result / Messages -->
-    <div id="gameMessage" class="message-banner hidden"></div>
+    <div id="gameMessage" class="message-banner hidden">
+       <span id="gameResultText"></span><br>
+       <button id="btnReturnLobby" class="btn-primary" style="margin-top: 15px;">Về Sảnh Chờ</button>
+    </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
