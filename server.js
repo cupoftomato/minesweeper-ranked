@@ -225,6 +225,12 @@ io.on('connection', (socket) => {
       socket.emit('authSuccess', getElo(username));
   });
 
+  socket.on('logout', () => {
+      delete socketUsers[socket.id];
+      normalQueue = normalQueue.filter(id => id !== socket.id);
+      rankedQueue = rankedQueue.filter(id => id !== socket.id);
+  });
+
   socket.on('findMatch', (type) => {
     if (!socketUsers[socket.id]) return; // must be auth
     normalQueue = normalQueue.filter(id => id !== socket.id);

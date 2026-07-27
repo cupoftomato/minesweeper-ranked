@@ -15,6 +15,7 @@ const btnRegister = document.getElementById('btnRegister');
 // Lobby DOM
 const lobbyUsername = document.getElementById('lobbyUsername');
 const lobbyElo = document.getElementById('lobbyElo');
+const btnLogout = document.getElementById('btnLogout');
 const btnNormal = document.getElementById('btnNormal');
 const btnRanked = document.getElementById('btnRanked');
 const actionButtons = document.getElementById('action-buttons');
@@ -119,6 +120,16 @@ function showLobby(name, elo) {
     gameMessage.classList.add('hidden');
 }
 
+btnLogout.addEventListener('click', () => {
+    myUsername = '';
+    myCurrentElo = 1200;
+    localStorage.removeItem('ms_username');
+    socket.emit('logout'); // Tell server if needed, though disconnect is fine too
+    lobbyScreen.classList.add('hidden');
+    authScreen.classList.remove('hidden');
+    usernameInput.value = '';
+    passwordInput.value = '';
+});
 
 // ================= MATCHMAKING =================
 function startMatchmaking(type) {

@@ -39,7 +39,9 @@ body { background-color: var(--bg-color); color: var(--text-main); display: flex
 /* LOBBY SCREEN */
 #lobby-screen { text-align: center; }
 .lobby-box { background: var(--panel-bg); padding: 2rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); min-width: 350px; }
-.user-profile { font-size: 1.2rem; margin-bottom: 20px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; border: 1px solid var(--accent); }
+.user-profile { font-size: 1.2rem; margin-bottom: 20px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; border: 1px solid var(--accent); position: relative; }
+.btn-logout { position: absolute; top: 15px; right: 15px; background: transparent; border: 1px solid var(--danger); color: var(--danger); border-radius: 4px; padding: 4px 8px; cursor: pointer; transition: 0.2s; }
+.btn-logout:hover { background: var(--danger); color: #fff; }
 
 .btn-mode { width: 100%; padding: 15px 20px; font-size: 1.2rem; border: none; font-weight: bold; border-radius: 8px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; margin-bottom: 15px; }
 .normal-btn { background: var(--cell-hover); color: #fff; border: 2px solid var(--accent); }
