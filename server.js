@@ -115,7 +115,7 @@ function createIntermission(p1Id, p2Id, type) {
       sock.join(roomId); sock.roomId = roomId;
       let oppId = pid === p1Id ? p2Id : p1Id;
       sock.emit('intermission_start', {
-        roomId: roomId, seedType: room.seedType,
+        roomId: roomId, seedType: room.seedType, type: room.type,
         myElo: getElo(socketUsers[pid]), oppElo: getElo(socketUsers[oppId]), oppName: socketUsers[oppId]
       });
     }
@@ -290,6 +290,21 @@ function getSafeStart(masterGrid) {
   return safeCells[Math.floor(Math.random() * safeCells.length)];
 }
 
+function broadcastStats() {
+    let qStats = { ranked: rankedQueue.length, normal: normalQueue.length };
+    
+    // Deduplicate online users based on username
+    let userMap = {};
+    for (let sid in socketUsers) {
+        let un = socketUsers[sid];
+        if (usersDB[un]) {
+            userMap[un] = { username: un, elo: usersDB[un].elo };
+        }
+    }
+    let onlineUsers = Object.values(userMap).sort((a,b) => b.elo - a.elo);
+    io.emit('serverStats', { queueStats: qStats, onlineUsers: onlineUsers });
+}
+
 function updateProgress(room) {
   const prog = {};
   for(let pid in room.players) prog[pid] = room.players[pid].progress;
@@ -321,11 +336,17 @@ function handleWin(room, winnerId, reason, isDraw = false) {
 }
 
 function removeFromAllQueues(socketId) {
+    let rLen = rankedQueue.length, nLen = normalQueue.length;
     normalQueue = normalQueue.filter(id => id !== socketId);
     rankedQueue = rankedQueue.filter(id => id !== socketId);
+    if (rLen !== rankedQueue.length || nLen !== normalQueue.length) {
+        broadcastStats();
+    }
 }
 
 io.on('connection', (socket) => {
+  broadcastStats();
+  
   socket.on('auth', (data) => {
       let username, oldElo = null;
       if (typeof data === 'object') {
@@ -343,11 +364,13 @@ io.on('connection', (socket) => {
       
       socketUsers[socket.id] = username;
       socket.emit('authSuccess', getElo(username));
+      broadcastStats();
   });
 
   socket.on('logout', () => {
       delete socketUsers[socket.id];
       removeFromAllQueues(socket.id);
+      broadcastStats();
   });
 
   socket.on('findMatch', (type) => {
@@ -360,7 +383,9 @@ io.on('connection', (socket) => {
       }
     } else if (type === 'ranked') {
       rankedQueue.push(socket.id);
+      // Wait for ranked logic...
     }
+    broadcastStats();
   });
 
   socket.on('cancelMatch', () => removeFromAllQueues(socket.id));
@@ -369,6 +394,18 @@ io.on('connection', (socket) => {
       if (!socket.roomId) return;
       const room = rooms[socket.roomId];
       if (room && room.status === 'intermission') handleVoteSkip(room, socket.id);
+  });
+
+  socket.on('selectNormalSeed', (seed) => {
+      if (!socket.roomId) return;
+      const room = rooms[socket.roomId];
+      if (room && room.status === 'intermission' && room.type === 'normal' && !room.seedLocked) {
+          if (SEED_TYPES.includes(seed)) {
+              room.seedType = seed;
+          }
+          room.seedLocked = true;
+          io.to(room.id).emit('normalSeedLocked', room.seedType);
+      }
   });
   
   socket.on('chat_msg', (msg) => {
@@ -526,6 +563,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    delete socketUsers[socket.id];
     removeFromAllQueues(socket.id);
     if (socket.roomId && rooms[socket.roomId]) {
         const room = rooms[socket.roomId];

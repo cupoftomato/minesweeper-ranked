@@ -36,7 +36,14 @@
       <div class="user-profile">
          Xin chào, <span id="lobbyUsername" class="accent-text"></span>!<br>
          Elo hiện tại: <span id="lobbyElo" class="gold-text"></span>
-         <button id="btnLogout" class="btn-logout">Đăng Xuất</button>
+         <div id="queue-stats" style="margin-top: 10px; font-size: 0.9rem; color: #94a3b8;">
+             <span title="Người chơi Online">🟢 <span id="online-count">1</span></span> | 
+             Hạng: <span id="ranked-q-count">0</span> | Thường: <span id="normal-q-count">0</span>
+         </div>
+         <div style="margin-top: 10px; display: flex; gap: 5px; justify-content: center;">
+             <button id="btnLogout" class="btn-logout" style="font-size: 0.8rem; padding: 5px 10px;">Đăng Xuất</button>
+             <button id="btnSetBg" class="btn-secondary" style="font-size: 0.8rem; padding: 5px 10px;">Đổi Hình Nền</button>
+         </div>
       </div>
 
       <div id="action-buttons">
@@ -68,6 +75,21 @@
           <div class="seed-info-box">
               <h3>SEED TYPE</h3>
               <div id="seed-name-display" class="seed-name">TRAP SEED</div>
+              
+              <!-- NORMAL SEED SELECTOR -->
+              <div id="normal-seed-selector" class="hidden" style="margin-top: 15px;">
+                  <p style="margin-bottom: 10px; font-size: 0.9rem; color: #facc15;">Bạn muốn chơi loại Seed nào? (Nhanh tay thì được!)</p>
+                  <div id="seedBtnGroup" style="display: flex; gap: 5px; justify-content: center; flex-wrap: wrap;">
+                      <button class="btn-seed-select" data-seed="Random" style="background: #334155;">Ngẫu nhiên</button>
+                      <button class="btn-seed-select" data-seed="Open">Open</button>
+                      <button class="btn-seed-select" data-seed="Isolated">Isolated</button>
+                      <button class="btn-seed-select" data-seed="Edge-Heavy">Edge</button>
+                      <button class="btn-seed-select" data-seed="Center-Heavy">Center</button>
+                      <button class="btn-seed-select" data-seed="Linear">Linear</button>
+                      <button class="btn-seed-select" data-seed="Symmetric">Symmetric</button>
+                      <button class="btn-seed-select" data-seed="Trap">Trap</button>
+                  </div>
+              </div>
           </div>
 
           <div class="timer-box">
@@ -132,6 +154,35 @@
   <div id="chat-container" class="hidden">
       <div id="chat-messages"></div>
       <input type="text" id="chat-input" placeholder="Nhấn Enter để chat..." autocomplete="off">
+  </div>
+
+  <!-- BOOK BUTTON & MODAL -->
+  <button id="btnSeedBook" style="position: fixed; bottom: 20px; left: 20px; font-size: 2rem; background: none; border: none; cursor: pointer; z-index: 1000; filter: drop-shadow(0 0 5px rgba(255,255,255,0.5)); transition: transform 0.2s;">📖</button>
+  
+  <div id="seed-book-modal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1500; display: flex; justify-content: center; align-items: center;">
+      <div style="background: var(--panel-bg); padding: 30px; border-radius: 12px; border: 2px solid var(--accent); max-width: 600px; max-height: 80vh; overflow-y: auto;">
+          <h2 style="color: var(--accent); margin-bottom: 20px; text-align: center;">SỔ TAY SEED MINESWEEPER</h2>
+          <ul style="text-align: left; line-height: 1.6; color: #cbd5e1;">
+              <li><strong style="color:#ef4444">Open:</strong> Nhiều mảng trống lớn, ít mìn. Giải nhanh, đọ tốc độ tay.</li>
+              <li><strong style="color:#ef4444">Isolated:</strong> Mìn rải rác đều, không co cụm. Nhiều số 1, 2. Ít khoảng trống.</li>
+              <li><strong style="color:#ef4444">Edge-Heavy:</strong> Mìn tập trung cực dày ở viền và góc bản đồ. Giữa rất trống.</li>
+              <li><strong style="color:#ef4444">Center-Heavy:</strong> Mìn dồn thành cục ở chính giữa bản đồ. Viền ngoài trống trải.</li>
+              <li><strong style="color:#ef4444">Linear:</strong> Mìn xếp thành đường ngoằn ngoèo như hành lang dài.</li>
+              <li><strong style="color:#ef4444">Symmetric:</strong> Mìn đối xứng hoàn hảo 2 bên như kính vạn hoa.</li>
+              <li><strong style="color:#ef4444">Trap:</strong> Cực nhiều bẫy 50/50 ở góc tường hoặc các cụm mìn 2x2 siêu khó.</li>
+          </ul>
+          <div style="text-align: center; margin-top: 20px;">
+              <button id="btnCloseSeedBook" class="btn-primary">Đóng</button>
+          </div>
+      </div>
+  </div>
+
+  <!-- LEADERBOARD MODAL -->
+  <div id="leaderboard-modal" class="hidden" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(30, 41, 59, 0.95); padding: 30px; border-radius: 12px; border: 2px solid var(--accent); z-index: 2000; min-width: 300px; box-shadow: 0 0 30px rgba(0,0,0,0.8);">
+      <h2 style="color: var(--accent); margin-bottom: 20px; text-align: center;">NGƯỜI CHƠI ONLINE</h2>
+      <div id="leaderboard-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto;">
+          <!-- Items generated by JS -->
+      </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>

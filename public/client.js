@@ -60,9 +60,25 @@ const drawModal = document.getElementById('draw-modal');
 const btnAcceptDraw = document.getElementById('btnAcceptDraw');
 const btnRejectDraw = document.getElementById('btnRejectDraw');
 
+const btnSetBg = document.getElementById('btnSetBg');
+const btnSeedBook = document.getElementById('btnSeedBook');
+const seedBookModal = document.getElementById('seed-book-modal');
+const btnCloseSeedBook = document.getElementById('btnCloseSeedBook');
+const leaderboardModal = document.getElementById('leaderboard-modal');
+const leaderboardList = document.getElementById('leaderboard-list');
+
+const normalSeedSelector = document.getElementById('normal-seed-selector');
+const btnSeedSelects = document.querySelectorAll('.btn-seed-select');
+
 let myId = null;
 let myUsername = localStorage.getItem('ms_username') || '';
 let myCurrentElo = parseInt(localStorage.getItem('ms_elo')) || 1200;
+let myCustomBg = localStorage.getItem('ms_bg') || '';
+
+if (myCustomBg) {
+    document.body.style.backgroundImage = `url('${myCustomBg}')`;
+    document.body.style.backgroundSize = 'cover';
+}
 
 let boardCols = 16, boardRows = 16, totalSafe = 0;
 let cells = [];
@@ -129,6 +145,51 @@ function showLobby(name, elo) {
     actionButtons.classList.remove('hidden'); matchmakingStatus.classList.add('hidden'); gameMessage.classList.add('hidden');
 }
 
+btnSetBg.addEventListener('click', () => {
+    const url = prompt("Nhập đường link ảnh nền (URL):", myCustomBg);
+    if (url !== null) {
+        myCustomBg = url.trim();
+        if (myCustomBg) {
+            localStorage.setItem('ms_bg', myCustomBg);
+            document.body.style.backgroundImage = `url('${myCustomBg}')`;
+            document.body.style.backgroundSize = 'cover';
+        } else {
+            localStorage.removeItem('ms_bg');
+            document.body.style.backgroundImage = '';
+        }
+    }
+});
+
+btnSeedBook.addEventListener('click', () => seedBookModal.classList.remove('hidden'));
+btnCloseSeedBook.addEventListener('click', () => seedBookModal.classList.add('hidden'));
+
+// TAB KEY LEADERBOARD
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+        e.preventDefault();
+        leaderboardModal.classList.remove('hidden');
+    }
+});
+document.addEventListener('keyup', (e) => {
+    if (e.key === 'Tab') {
+        leaderboardModal.classList.add('hidden');
+    }
+});
+
+socket.on('serverStats', (stats) => {
+    document.getElementById('online-count').innerText = stats.onlineUsers.length;
+    document.getElementById('ranked-q-count').innerText = stats.queueStats.ranked;
+    document.getElementById('normal-q-count').innerText = stats.queueStats.normal;
+    
+    leaderboardList.innerHTML = '';
+    stats.onlineUsers.forEach((u, idx) => {
+        let div = document.createElement('div');
+        div.style.display = 'flex'; div.style.justifyContent = 'space-between'; div.style.padding = '8px'; div.style.background = 'rgba(0,0,0,0.4)'; div.style.borderRadius = '4px';
+        div.innerHTML = `<span><strong style="color:var(--accent)">#${idx+1}</strong> ${u.username}</span> <span class="gold-text">${u.elo}</span>`;
+        leaderboardList.appendChild(div);
+    });
+});
+
 btnLogout.addEventListener('click', () => {
     myUsername = ''; myCurrentElo = 1200;
     localStorage.removeItem('ms_username');
@@ -139,47 +200,61 @@ btnLogout.addEventListener('click', () => {
 });
 
 // ================= MATCHMAKING =================
-function startMatchmaking(type) {
-  actionButtons.classList.add('hidden'); matchmakingStatus.classList.remove('hidden');
-  socket.emit('findMatch', type);
-  findTime = 0; statusText.innerText = `Đang tìm đối thủ (${type.toUpperCase()})... 0s`;
-  findingInterval = setInterval(() => {
-    findTime++; statusText.innerText = `Đang tìm đối thủ (${type.toUpperCase()})... ${findTime}s`;
-  }, 1000);
-}
-
-btnNormal.addEventListener('click', () => startMatchmaking('normal'));
-btnRanked.addEventListener('click', () => startMatchmaking('ranked'));
-
+btnRanked.addEventListener('click', () => {
+  socket.emit('findMatch', 'ranked');
+  actionButtons.classList.add('hidden');
+  matchmakingStatus.classList.remove('hidden');
+});
+btnNormal.addEventListener('click', () => {
+  socket.emit('findMatch', 'normal');
+  actionButtons.classList.add('hidden');
+  matchmakingStatus.classList.remove('hidden');
+});
 btnCancel.addEventListener('click', () => {
-  socket.emit('cancelMatch'); clearInterval(findingInterval);
-  matchmakingStatus.classList.add('hidden'); actionButtons.classList.remove('hidden');
+  socket.emit('cancelMatch');
+  actionButtons.classList.remove('hidden');
+  matchmakingStatus.classList.add('hidden');
 });
 
 // ================= INTERMISSION =================
 socket.on('intermission_start', (data) => {
-    clearInterval(findingInterval);
-    lobbyScreen.classList.add('hidden');
+    lobbyScreen.classList.add('hidden'); chatContainer.classList.add('hidden');
     intermissionScreen.classList.remove('hidden');
-    chatContainer.classList.add('hidden');
     
-    // Only update info if full data provided (first time)
-    if (data.myElo > 0) {
-        intMyName.innerText = myUsername;
-        intMyElo.innerText = `Elo: ${data.myElo}`;
-        intOppName.innerText = data.oppName;
-        intOppElo.innerText = `Elo: ${data.oppElo}`;
-        oppNameEl.innerText = data.oppName;
-        myEloEl.innerText = `(Elo: ${data.myElo})`;
-        oppEloEl.innerText = `(Elo: ${data.oppElo})`;
-    }
+    document.getElementById('int-my-name').innerText = myUsername;
+    document.getElementById('int-my-elo').innerText = data.myElo;
+    document.getElementById('int-opp-name').innerText = data.oppName;
+    document.getElementById('int-opp-elo').innerText = data.oppElo;
     
-    seedNameDisplay.innerText = data.seedType + ' SEED';
-    seedBg.style.backgroundImage = `url(${generateCanvasSeed(data.seedType)})`;
+    seedNameDisplay.innerText = data.seedType === 'Random' ? 'ĐANG CHỌN...' : data.seedType + ' SEED';
+    if(data.seedType !== 'Random') seedBg.style.backgroundImage = `url(${generateCanvasSeed(data.seedType)})`;
+    else seedBg.style.backgroundImage = '';
     
     btnVoteSkip.disabled = false;
     btnVoteSkip.innerText = "ĐỔI SEED KHÁC";
-    voteStatusText.innerText = `0/2 người muốn đổi`;
+    btnVoteSkip.classList.remove('locked');
+    document.getElementById('vote-status-text').innerText = '0/2 người muốn đổi';
+    
+    if (data.type === 'normal') {
+        normalSeedSelector.classList.remove('hidden');
+        btnSeedSelects.forEach(btn => {
+            btn.classList.remove('locked');
+            let s = btn.getAttribute('data-seed');
+            if (s !== 'Random') btn.style.backgroundImage = `url(${generateCanvasSeed(s)})`;
+            btn.onclick = () => socket.emit('selectNormalSeed', s);
+        });
+    } else {
+        normalSeedSelector.classList.add('hidden');
+    }
+});
+
+socket.on('normalSeedLocked', (seed) => {
+    seedNameDisplay.innerText = seed + ' SEED';
+    seedBg.style.backgroundImage = `url(${generateCanvasSeed(seed)})`;
+    btnSeedSelects.forEach(btn => {
+        if (btn.getAttribute('data-seed') === seed) btn.classList.add('locked');
+        btn.onclick = null;
+    });
 });
 
 socket.on('intermission_tick', (timeLeft) => {
