@@ -311,13 +311,16 @@ function updateProgress(room) {
   io.to(room.id).emit('progressUpdate', prog);
 }
 
-function handleWin(room, winnerId, reason, isDraw = false) {
+function handleWin(room, winnerId, reason) {
   if (room.status === 'ended') return;
   room.status = 'ended';
   
-  if (isDraw) {
+  let timeUsedStr = room.startTime ? ` (${((Date.now() - room.startTime)/1000).toFixed(1)}s)` : '';
+  let fullGrid = room.masterGrid; // Gửi toàn bộ mìn về để reveal
+  
+  if (!winnerId) {
       for(let pid in room.players) {
-          io.to(pid).emit('gameOver', { winner: null, reason: reason + ' (Hòa - Không đổi Elo)' });
+          io.to(pid).emit('gameOver', { winner: null, reason: reason + timeUsedStr + ' (Hòa - Không đổi Elo)', fullGrid });
       }
       return;
   }
@@ -331,8 +334,8 @@ function handleWin(room, winnerId, reason, isDraw = false) {
     p1EloStr = ` (+${getElo(wUser) - oldW} Elo)`;
     p2EloStr = ` (${getElo(lUser) - oldL} Elo)`;
   }
-  io.to(winnerId).emit('gameOver', { winner: winnerId, reason: reason + p1EloStr });
-  if (loserId) io.to(loserId).emit('gameOver', { winner: winnerId, reason: reason + p2EloStr });
+  io.to(winnerId).emit('gameOver', { winner: winnerId, reason: reason + timeUsedStr + p1EloStr, fullGrid });
+  if (loserId) io.to(loserId).emit('gameOver', { winner: winnerId, reason: reason + timeUsedStr + p2EloStr, fullGrid });
 }
 
 function removeFromAllQueues(socketId) {
@@ -404,6 +407,7 @@ io.on('connection', (socket) => {
               room.seedType = seed;
           }
           room.seedLocked = true;
+          room.seedWinnerId = socket.id; // Lưu lại người nhanh tay
           io.to(room.id).emit('normalSeedLocked', room.seedType);
       }
   });
@@ -540,26 +544,88 @@ io.on('connection', (socket) => {
   });
 
   socket.on('offerDraw', () => {
-     if (!socket.roomId) return;
-     const room = rooms[socket.roomId];
-     if (!room || room.status !== 'playing') return;
-     let oppId = Object.keys(room.players).find(id => id !== socket.id);
-     if (oppId) io.to(oppId).emit('drawOffered');
+    if (!socket.roomId) return;
+    const room = rooms[socket.roomId];
+    if (room && room.status === 'playing') {
+      let oppId = Object.keys(room.players).find(id => id !== socket.id);
+      if (oppId) io.to(oppId).emit('drawRequested');
+    }
   });
 
   socket.on('acceptDraw', () => {
-     if (!socket.roomId) return;
-     const room = rooms[socket.roomId];
-     if (!room || room.status !== 'playing') return;
-     handleWin(room, null, 'Hai bên đồng ý hòa!', true);
+    if (!socket.roomId) return;
+    const room = rooms[socket.roomId];
+    if (room && room.status === 'playing') {
+      handleWin(room, null, 'Hai bên đồng ý hòa!');
+    }
   });
 
   socket.on('rejectDraw', () => {
-     if (!socket.roomId) return;
-     const room = rooms[socket.roomId];
-     if (!room || room.status !== 'playing') return;
-     let oppId = Object.keys(room.players).find(id => id !== socket.id);
-     if (oppId) io.to(oppId).emit('drawRejected');
+    if (!socket.roomId) return;
+    const room = rooms[socket.roomId];
+    if (room && room.status === 'playing') {
+      let oppId = Object.keys(room.players).find(id => id !== socket.id);
+      if (oppId) io.to(oppId).emit('drawRejected');
+    }
+  });
+
+  socket.on('requestChangeSeed', () => {
+    if (!socket.roomId) return;
+    const room = rooms[socket.roomId];
+    if (room && room.status === 'playing') {
+      let oppId = Object.keys(room.players).find(id => id !== socket.id);
+      if (oppId) io.to(oppId).emit('seedChangeRequested');
+    }
+  });
+
+  socket.on('acceptChangeSeed', () => {
+    if (!socket.roomId) return;
+    const room = rooms[socket.roomId];
+    if (room && room.status === 'playing') {
+      if (room.type === 'ranked') {
+          // Restart immediately with random seed
+          room.seedType = getRandomSeedType();
+          for(let pid in room.players) {
+              room.players[pid].openedGrid = [];
+              room.players[pid].flagsGrid = [];
+              room.players[pid].progress = 0;
+              room.players[pid].strikes = 0;
+              room.players[pid].frozenUntil = 0;
+          }
+          startGame(room);
+      } else {
+          // Normal mode: go back to intermission
+          room.status = 'intermission';
+          room.seedLocked = false;
+          let pids = Object.keys(room.players);
+          let p1Id = pids[0], p2Id = pids[1];
+          let pickerId = null;
+          if (room.seedWinnerId) {
+              pickerId = room.seedWinnerId === p1Id ? p2Id : p1Id;
+              room.seedWinnerId = null; // Reset for next time
+          }
+          pids.forEach(pid => {
+            const sock = io.sockets.sockets.get(pid);
+            if(sock) {
+              let oppId = pid === p1Id ? p2Id : p1Id;
+              sock.emit('intermission_start', {
+                roomId: room.id, seedType: 'Random', type: room.type, pickerId: pickerId,
+                myElo: getElo(socketUsers[pid]), oppElo: getElo(socketUsers[oppId]), oppName: socketUsers[oppId]
+              });
+            }
+          });
+          startIntermissionTimer(room);
+      }
+    }
+  });
+
+  socket.on('rejectChangeSeed', () => {
+    if (!socket.roomId) return;
+    const room = rooms[socket.roomId];
+    if (room && room.status === 'playing') {
+      let oppId = Object.keys(room.players).find(id => id !== socket.id);
+      if (oppId) io.to(oppId).emit('seedChangeRejected');
+    }
   });
 
   socket.on('disconnect', () => {

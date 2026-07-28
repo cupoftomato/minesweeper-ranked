@@ -56,9 +56,8 @@ const chatInput = document.getElementById('chat-input');
 
 const btnSurrender = document.getElementById('btnSurrender');
 const btnOfferDraw = document.getElementById('btnOfferDraw');
-const drawModal = document.getElementById('draw-modal');
-const btnAcceptDraw = document.getElementById('btnAcceptDraw');
-const btnRejectDraw = document.getElementById('btnRejectDraw');
+const btnVoteSeed = document.getElementById('btnVoteSeed');
+const actionRequestsContainer = document.getElementById('action-requests-container');
 
 const btnSetBg = document.getElementById('btnSetBg');
 const btnSeedBook = document.getElementById('btnSeedBook');
@@ -254,14 +253,26 @@ socket.on('intermission_start', (data) => {
     document.getElementById('vote-status-text').innerText = '0/2 người muốn đổi';
     
     if (data.type === 'normal') {
+        btnVoteSkip.classList.add('hidden');
+        document.getElementById('vote-status-text').classList.add('hidden');
         normalSeedSelector.classList.remove('hidden');
         btnSeedSelects.forEach(btn => {
             btn.classList.remove('locked');
             let s = btn.getAttribute('data-seed');
             if (s !== 'Random') btn.style.backgroundImage = `url(${generateCanvasSeed(s)})`;
-            btn.onclick = () => socket.emit('selectNormalSeed', s);
+            if (data.pickerId === null || data.pickerId === myId) {
+                btn.onclick = () => socket.emit('selectNormalSeed', s);
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+            } else {
+                btn.onclick = null;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+            }
         });
     } else {
+        btnVoteSkip.classList.remove('hidden');
+        document.getElementById('vote-status-text').classList.remove('hidden');
         normalSeedSelector.classList.add('hidden');
     }
 });
@@ -460,14 +471,29 @@ socket.on('opponentStrike', ({r, c}) => {
 
 socket.on('opponentPing', ({r, c}) => {});
 
-socket.on('gameOver', ({winner, reason}) => {
+socket.on('gameOver', ({winner, reason, fullGrid}) => {
   clearInterval(timerInterval);
   isFrozen = true;
   
+  if (fullGrid) {
+      for (let i = 0; i < boardRows; i++) {
+          for (let j = 0; j < boardCols; j++) {
+              if (fullGrid[i][j] === -1) {
+                  cells[i][j].classList.add('open');
+                  if (!cells[i][j].classList.contains('flag')) {
+                      cells[i][j].innerText = '💣';
+                  }
+              }
+          }
+      }
+  }
+  
   if (winner === myId) {
-    gameResultText.innerText = `BẠN THẮNG! ${reason}`; gameResultText.style.color = 'var(--success)';
+    gameResultText.innerHTML = `MATCH ENDED<br><span style="font-size:1.5rem; color:var(--success)">Bạn Thắng! ${reason}</span>`; 
+  } else if (winner === null) {
+    gameResultText.innerHTML = `MATCH ENDED<br><span style="font-size:1.5rem; color:#facc15">${reason}</span>`;
   } else {
-    gameResultText.innerText = `BẠN THUA! ${reason}`; gameResultText.style.color = 'var(--danger)';
+    gameResultText.innerHTML = `MATCH ENDED<br><span style="font-size:1.5rem; color:var(--danger)">Bạn Thua! ${reason}</span>`;
   }
   gameMessage.classList.remove('hidden');
   socket.emit('auth', myUsername); // Refresh elo
@@ -479,42 +505,46 @@ btnReturnLobby.addEventListener('click', () => {
 
 // SURRENDER & DRAW
 btnSurrender.addEventListener('click', () => {
-    if(confirm('Bạn có chắc chắn muốn đầu hàng không? (Sẽ bị xử thua)')) {
+    if(confirm('Bạn có chắc chắn muốn Đầu Hàng? (Sẽ bị tính là Thua và trừ Elo nếu đấu hạng)')) {
         socket.emit('surrender');
     }
 });
-
 btnOfferDraw.addEventListener('click', () => {
-    btnOfferDraw.disabled = true;
-    btnOfferDraw.innerText = 'Đã xin hòa';
     socket.emit('offerDraw');
-    addSysMsg('Đã gửi lời mời hòa cho đối thủ.');
-    setTimeout(() => { 
-        btnOfferDraw.disabled = false; 
-        btnOfferDraw.innerText = 'Xin Hòa'; 
-    }, 15000); // 15s cooldown
+    btnOfferDraw.disabled = true;
+    btnOfferDraw.innerText = "Đã gửi xin hòa";
+});
+btnVoteSeed.addEventListener('click', () => {
+    socket.emit('requestChangeSeed');
+    btnVoteSeed.disabled = true;
+    btnVoteSeed.innerText = "Đã gửi Đổi Seed";
 });
 
-socket.on('drawOffered', () => {
-    drawModal.classList.remove('hidden');
+socket.on('drawRequested', () => {
+    createToast("Đối thủ xin hòa trận này!", "#ffffff", 
+        () => socket.emit('acceptDraw'), 
+        () => socket.emit('rejectDraw')
+    );
 });
-
-btnAcceptDraw.addEventListener('click', () => {
-    drawModal.classList.add('hidden');
-    socket.emit('acceptDraw');
-});
-
-btnRejectDraw.addEventListener('click', () => {
-    drawModal.classList.add('hidden');
-    socket.emit('rejectDraw');
+socket.on('seedChangeRequested', () => {
+    createToast("Đối thủ muốn đổi Seed khác!", "#eab308", 
+        () => socket.emit('acceptChangeSeed'), 
+        () => socket.emit('rejectChangeSeed')
+    );
 });
 
 socket.on('drawRejected', () => {
-    addSysMsg('Đối thủ đã từ chối lời mời hòa.');
+    btnOfferDraw.disabled = false;
+    btnOfferDraw.innerText = "Xin Hòa";
+    alert('Đối thủ đã từ chối hòa!');
+});
+socket.on('seedChangeRejected', () => {
+    btnVoteSeed.disabled = false;
+    btnVoteSeed.innerText = "Đổi Seed";
+    alert('Đối thủ không đồng ý đổi Seed!');
 });
 
-
-// ================= CHAT SYSTEM =================
+// ================= GAMEPLAY =================
 function addSysMsg(text) {
     const div = document.createElement('div');
     div.className = 'chat-msg chat-sys';
