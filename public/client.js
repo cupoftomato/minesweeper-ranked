@@ -82,11 +82,26 @@ if (myCustomBg) {
 
 let boardCols = 16, boardRows = 16, totalSafe = 0;
 let cells = [];
+let findTime = 0;
+let findingInterval;
+let myPing = 0;
+
+const GAME_TIPS = [
+    "💡 Mẹo: Seed 'Open' là nơi đọ tốc độ tay (CPS), hãy tận dụng kỹ năng Click Đúp (Chording) thật nhiều!",
+    "💡 Sự thật: Trò chơi Minesweeper nguyên bản được phát triển từ thập niên 1980.",
+    "💡 Sự thật: Kỷ lục thế giới giải Minesweeper bảng Khó (Expert) hiện tại chưa tới 30 giây!",
+    "💡 Mẹo: Nếu bạn thấy số 1 ở góc tường, thì ô chéo duy nhất của nó chắn chắn là mìn.",
+    "💡 Mẹo: Đấu Hạng (Ranked) sẽ trừ rất nhiều điểm Elo nếu bạn đầu hàng, hãy cân nhắc trước khi bỏ cuộc!",
+    "💡 Sự thật: Trò chơi này từng bị Microsoft định gỡ bỏ vì... chính Bill Gates cũng từng nghiện nó.",
+    "💡 Mẹo: Seed 'Center-Heavy' có mìn tập trung rất dày ở tâm, hãy bắt đầu từ viền ngoài để đảm bảo an toàn.",
+    "💡 Mẹo: Nhấn giữ phím TAB bất cứ lúc nào để xem danh sách những cao thủ đang Online.",
+    "💡 Sự thật: Số 8 là con số lớn nhất bạn có thể gặp trong trò chơi, nghĩa là bạn đang bị bủa vây hoàn toàn!",
+    "💡 Mẹo: Nếu 2 người chơi cùng cắm cờ sai và nổ mìn quá 3 lần, ai nổ lần 3 trước người đó sẽ bị xử thua.",
+    "💡 Sự thật: Minesweeper Ranked được tạo ra bởi AI Antigravity!"
+];
+let isFrozen = false;
 let timerInterval = null;
 let startTime = 0;
-let isFrozen = false;
-let findingInterval = null;
-let findTime = 0;
 
 // ================= AUTHENTICATION =================
 if (myUsername) {
@@ -225,6 +240,9 @@ socket.on('intermission_start', (data) => {
     document.getElementById('int-my-elo').innerText = data.myElo;
     document.getElementById('int-opp-name').innerText = data.oppName;
     document.getElementById('int-opp-elo').innerText = data.oppElo;
+    
+    // Pick random tip
+    document.getElementById('intermission-tip').innerText = GAME_TIPS[Math.floor(Math.random() * GAME_TIPS.length)];
     
     seedNameDisplay.innerText = data.seedType === 'Random' ? 'ĐANG CHỌN...' : data.seedType + ' SEED';
     if(data.seedType !== 'Random') seedBg.style.backgroundImage = `url(${generateCanvasSeed(data.seedType)})`;
