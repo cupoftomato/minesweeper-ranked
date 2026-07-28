@@ -174,7 +174,7 @@ function startGame(room) {
         
         const sock = io.sockets.sockets.get(pid);
         if(sock) {
-            sock.emit('game_start', { rows: ROWS, cols: COLS, totalSafe: TOTAL_SAFE, startReveal: initialReveal });
+            sock.emit('game_start', { rows: ROWS, cols: COLS, totalSafe: TOTAL_SAFE, startReveal: initialReveal, seedType: room.seedType });
         }
     }
     updateProgress(room);
