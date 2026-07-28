@@ -39,7 +39,6 @@ const boardEl = document.getElementById('minesweeper-board');
 const p1StrikesEl = document.getElementById('p1-strikes');
 const p2StatusEl = document.getElementById('p2-status');
 const timerDisplay = document.getElementById('timerDisplay');
-const gameMessage = document.getElementById('gameMessage');
 const gameResultText = document.getElementById('gameResultText');
 const btnReturnLobby = document.getElementById('btnReturnLobby');
 const p1Bar = document.getElementById('p1-bar');
@@ -156,7 +155,7 @@ function showLobby(name, elo) {
     authScreen.classList.add('hidden'); gameScreen.classList.add('hidden'); intermissionScreen.classList.add('hidden'); chatContainer.classList.add('hidden');
     lobbyScreen.classList.remove('hidden');
     lobbyUsername.innerText = name; lobbyElo.innerText = elo;
-    actionButtons.classList.remove('hidden'); matchmakingStatus.classList.add('hidden'); gameMessage.classList.add('hidden');
+    actionButtons.classList.remove('hidden'); matchmakingStatus.classList.add('hidden');
 }
 
 btnSetBg.addEventListener('click', () => {
