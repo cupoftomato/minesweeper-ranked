@@ -227,7 +227,7 @@ btnNormal.addEventListener('click', () => {
 btnCancel.addEventListener('click', () => {
   socket.emit('cancelMatch');
   actionButtons.classList.remove('hidden');
-  matchmakingStatus.classList.add('hidden');
+  matchmakingStatus.classList.remove('hidden');
 });
 
 // ================= INTERMISSION =================
@@ -356,6 +356,18 @@ socket.on('game_start', (data) => {
   p1Bar.style.width = `50%`; p2Bar.style.width = `50%`;
   p1StrikesEl.innerText = `Lỗi: 0/3`;
   isFrozen = false;
+  
+  // Reset UI elements
+  btnSurrender.classList.remove('hidden');
+  btnOfferDraw.classList.remove('hidden');
+  btnOfferDraw.disabled = false; btnOfferDraw.innerText = "Xin Hòa";
+  btnVoteSeed.classList.remove('hidden');
+  btnVoteSeed.disabled = false; btnVoteSeed.innerText = "Đổi Seed";
+  document.getElementById('btnReturnLobby').classList.add('hidden');
+  
+  document.getElementById('ingame-seed-name').innerText = data.seedType + ' SEED';
+  document.getElementById('ingame-seed-icon').style.backgroundImage = `url(${generateCanvasSeed(data.seedType)})`;
+  actionRequestsContainer.innerHTML = '';
   
   createBoard(data.rows, data.cols);
   
@@ -488,18 +500,33 @@ socket.on('gameOver', ({winner, reason, fullGrid}) => {
       }
   }
   
+  const gameOverOverlay = document.getElementById('game-over-overlay');
   if (winner === myId) {
-    gameResultText.innerHTML = `MATCH ENDED<br><span style="font-size:1.5rem; color:var(--success)">Bạn Thắng! ${reason}</span>`; 
+    gameResultText.innerHTML = `MATCH ENDED<br><span style="font-size:2rem; color:var(--success)">Bạn Thắng!<br><span style="font-size:1.2rem">${reason}</span></span>`; 
   } else if (winner === null) {
-    gameResultText.innerHTML = `MATCH ENDED<br><span style="font-size:1.5rem; color:#facc15">${reason}</span>`;
+    gameResultText.innerHTML = `MATCH ENDED<br><span style="font-size:2rem; color:#facc15">${reason}</span>`;
   } else {
-    gameResultText.innerHTML = `MATCH ENDED<br><span style="font-size:1.5rem; color:var(--danger)">Bạn Thua! ${reason}</span>`;
+    gameResultText.innerHTML = `MATCH ENDED<br><span style="font-size:2rem; color:var(--danger)">Bạn Thua!<br><span style="font-size:1.2rem">${reason}</span></span>`;
   }
-  gameMessage.classList.remove('hidden');
+  
+  gameOverOverlay.classList.remove('hidden');
+  gameOverOverlay.style.opacity = '1';
+  gameOverOverlay.style.transition = 'opacity 1s ease-in-out';
+  
+  btnSurrender.classList.add('hidden');
+  btnOfferDraw.classList.add('hidden');
+  btnVoteSeed.classList.add('hidden');
+  document.getElementById('btnReturnLobby').classList.remove('hidden');
+
+  setTimeout(() => {
+     gameOverOverlay.style.opacity = '0';
+     setTimeout(() => gameOverOverlay.classList.add('hidden'), 1000);
+  }, 3000);
+
   socket.emit('auth', myUsername); // Refresh elo
 });
 
-btnReturnLobby.addEventListener('click', () => {
+document.getElementById('btnReturnLobby').addEventListener('click', () => {
     showLobby(myUsername, myCurrentElo);
 });
 
@@ -521,13 +548,15 @@ btnVoteSeed.addEventListener('click', () => {
 });
 
 socket.on('drawRequested', () => {
-    createToast("Đối thủ xin hòa trận này!", "#ffffff", 
+    let oppName = document.getElementById('opp-name').innerText;
+    createToast(`${oppName} xin hòa trận này!`, "#ffffff", 
         () => socket.emit('acceptDraw'), 
         () => socket.emit('rejectDraw')
     );
 });
 socket.on('seedChangeRequested', () => {
-    createToast("Đối thủ muốn đổi Seed khác!", "#eab308", 
+    let oppName = document.getElementById('opp-name').innerText;
+    createToast(`${oppName} muốn đổi Seed khác!`, "#eab308", 
         () => socket.emit('acceptChangeSeed'), 
         () => socket.emit('rejectChangeSeed')
     );
@@ -536,12 +565,14 @@ socket.on('seedChangeRequested', () => {
 socket.on('drawRejected', () => {
     btnOfferDraw.disabled = false;
     btnOfferDraw.innerText = "Xin Hòa";
-    alert('Đối thủ đã từ chối hòa!');
+    let oppName = document.getElementById('opp-name').innerText;
+    alert(`${oppName} đã từ chối hòa!`);
 });
 socket.on('seedChangeRejected', () => {
     btnVoteSeed.disabled = false;
     btnVoteSeed.innerText = "Đổi Seed";
-    alert('Đối thủ không đồng ý đổi Seed!');
+    let oppName = document.getElementById('opp-name').innerText;
+    alert(`${oppName} không đồng ý đổi Seed!`);
 });
 
 // ================= GAMEPLAY =================
