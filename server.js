@@ -41,9 +41,9 @@ app.post('/api/login', (req, res) => {
     
     if (!user) {
         // Tài khoản bị Render xóa mất -> Tự động đăng ký lại với pass họ vừa nhập, điểm về 1200
-        usersDB[username] = { password: hashPassword(password), elo: 1200 };
+        usersDB[username] = { password: hashPassword(password), elo: 1200, history: [] };
         saveDB();
-        return res.json({ success: true, username, elo: 1200 });
+        return res.json({ success: true, username, elo: 1200, history: [] });
     }
 
     // Nếu tài khoản được auto-auth khôi phục với mật khẩu 'restored', 
@@ -58,7 +58,7 @@ app.post('/api/login', (req, res) => {
         return res.status(400).json({ error: 'Tài khoản/Mật khẩu không đúng!' });
     }
 
-    res.json({ success: true, username, elo: user.elo });
+    res.json({ success: true, username, elo: user.elo, history: user.history || [] });
 });
 
 // Game Config
@@ -322,8 +322,18 @@ function handleWin(room, winnerId, reason, isDraw = false, loserReason = null) {
     let wUser = room.players[winnerId].username, lUser = room.players[loserId].username;
     let oldW = getElo(wUser), oldL = getElo(lUser);
     updateElo(wUser, lUser);
-    p1EloStr = ` (+${getElo(wUser) - oldW} Elo)`;
-    p2EloStr = ` (${getElo(lUser) - oldL} Elo)`;
+    
+    let wE = getElo(wUser), lE = getElo(lUser);
+    let changeW = wE - oldW, changeL = lE - oldL;
+    p1EloStr = ` (+${changeW} Elo)`;
+    p2EloStr = ` (${changeL} Elo)`;
+    
+    if (!usersDB[wUser].history) usersDB[wUser].history = [];
+    if (!usersDB[lUser].history) usersDB[lUser].history = [];
+    
+    usersDB[wUser].history.push({ time: Date.now(), result: 'win', change: changeW, eloAfter: wE, opponent: lUser });
+    usersDB[lUser].history.push({ time: Date.now(), result: 'loss', change: changeL, eloAfter: lE, opponent: wUser });
+    saveDB();
   }
   
   let finalWinnerReason = reason;
@@ -350,12 +360,13 @@ io.on('connection', (socket) => {
       
       if (!usersDB[username] && oldElo !== null) {
           // Server Amnesia Fallback: Re-register transparently
-          usersDB[username] = { password: hashPassword('restored'), elo: oldElo };
+          usersDB[username] = { password: hashPassword('restored'), elo: oldElo, history: [] };
           saveDB();
       }
       
       socketUsers[socket.id] = username;
-      socket.emit('authSuccess', getElo(username));
+      let userHistory = usersDB[username] ? (usersDB[username].history || []) : [];
+      socket.emit('authSuccess', { elo: getElo(username), history: userHistory });
   });
 
   socket.on('logout', () => {

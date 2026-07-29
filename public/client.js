@@ -95,11 +95,90 @@ socket.on('connect', () => {
   if (myUsername) socket.emit('auth', { username: myUsername, elo: myCurrentElo });
 });
 
-socket.on('authSuccess', (elo) => {
+let eloChartInstance = null;
+
+socket.on('authSuccess', (data) => {
+    // data can be an object {elo, history} or just elo (if old server version, but we updated server)
+    let elo = typeof data === 'object' ? data.elo : data;
+    let history = typeof data === 'object' ? data.history : [];
+    
     myCurrentElo = elo;
     localStorage.setItem('ms_elo', elo);
     lobbyElo.innerText = elo;
+    
+    renderChart(history);
 });
+
+function renderChart(history) {
+    const ctx = document.getElementById('eloChart');
+    if (!ctx) return;
+    
+    if (eloChartInstance) {
+        eloChartInstance.destroy();
+    }
+    
+    // If no history, just show one point
+    let labels = [];
+    let dataPoints = [];
+    
+    if (!history || history.length === 0) {
+        labels = ['Start'];
+        dataPoints = [1200];
+    } else {
+        // Take last 10 matches
+        let recent = history.slice(-10);
+        // Add a starting point which is the elo before the first match in this slice
+        let startElo = recent[0].eloAfter - recent[0].change;
+        labels.push('');
+        dataPoints.push(startElo);
+        
+        recent.forEach((match, index) => {
+            labels.push((match.result === 'win' ? 'W' : (match.result === 'loss' ? 'L' : 'D')));
+            dataPoints.push(match.eloAfter);
+        });
+    }
+
+    eloChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Elo',
+                data: dataPoints,
+                borderColor: '#38bdf8',
+                backgroundColor: 'rgba(56, 189, 248, 0.2)',
+                borderWidth: 2,
+                tension: 0.2,
+                pointBackgroundColor: '#fbbf24',
+                pointRadius: 4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title: () => null,
+                        label: (context) => `Elo: ${context.parsed.y}`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: { color: '#94a3b8', font: { size: 10 } },
+                    grid: { color: '#334155' }
+                },
+                x: {
+                    ticks: { color: '#94a3b8', font: { size: 10 } },
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+}
 
 async function handleAuth(action) {
     const user = usernameInput.value.trim();
@@ -121,6 +200,7 @@ async function handleAuth(action) {
             authScreen.classList.add('hidden');
             socket.emit('auth', { username: myUsername, elo: myCurrentElo });
             showLobby(myUsername, myCurrentElo);
+            if (data.history) renderChart(data.history);
         } else {
             authMessage.innerText = data.error;
             authMessage.classList.remove('hidden');

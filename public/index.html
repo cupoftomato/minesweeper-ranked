@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Minesweeper Ranked</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   
@@ -28,46 +29,78 @@
 
   <!-- LOBBY SCREEN -->
   <div id="lobby-screen" class="hidden">
-    <div class="logo">
-      <h1>MINESWEEPER <span class="ranked">RANKED</span></h1>
-    </div>
-    
-    <div class="lobby-box">
-      <div class="user-profile">
-         Xin chào, <span id="lobbyUsername" class="accent-text"></span>!<br>
-         Elo hiện tại: <span id="lobbyElo" class="gold-text"></span>
-         <div style="margin-top: 10px; display: flex; gap: 10px; justify-content: center;">
-             <button id="btnChangelog" class="btn-secondary" style="padding: 5px 10px; font-size: 0.8rem; background: #2a3a5a;">Patch Notes</button>
-             <button id="btnWatchRecord" class="btn-secondary hidden" style="padding: 5px 10px; font-size: 0.8rem; background: #e2b714; color: #000;">Xem Kỷ Lục</button>
-             <button id="btnLogout" class="btn-logout" style="padding: 5px 10px; font-size: 0.8rem;">Đăng Xuất</button>
-         </div>
-      </div>
-
-      <div id="action-buttons">
-        <div class="normal-action-group" style="display: flex; gap: 10px; align-items: stretch; margin-bottom: 10px;">
-            <button id="btnNormal" class="btn-mode normal-btn" style="flex: 1; margin-bottom: 0;">PLAY NORMAL</button>
-            <button id="btnSolo" class="btn-mode" style="flex: 1; margin-bottom: 0; background: linear-gradient(135deg, #4CAF50, #2E7D32);">PLAY SOLO</button>
-            <select id="normalSeedSelect" class="seed-select" style="padding: 10px; border-radius: 5px; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #4a90e2; cursor: pointer; outline: none; font-weight: bold;">
-                <option value="Random">Random Seed</option>
-                <option value="Open">Open</option>
-                <option value="Isolated">Isolated</option>
-                <option value="Edge-Heavy">Edge-Heavy</option>
-                <option value="Center-Heavy">Center-Heavy</option>
-                <option value="Linear">Linear</option>
-                <option value="Symmetric">Symmetric</option>
-                <option value="Trap">Trap</option>
-            </select>
+    <div class="lobby-layout">
+      <!-- SIDEBAR -->
+      <div class="lobby-sidebar">
+        <div class="logo">
+          <h1 style="font-size: 2rem;">MINESWEEPER<br><span class="ranked">RANKED</span></h1>
         </div>
-        <button id="btnRanked" class="btn-mode ranked-btn">PLAY RANKED</button>
+        
+        <div class="user-profile-card">
+           <div class="profile-header">
+               <div class="profile-info">
+                   <div id="lobbyUsername" class="accent-text" style="font-size: 1.5rem; text-transform: uppercase;"></div>
+                   <div style="color:#aaa; font-size: 1rem; margin-top: 5px;">Elo: <span id="lobbyElo" class="gold-text"></span></div>
+               </div>
+           </div>
+           
+           <!-- MATCH HISTORY CHART -->
+           <div class="chart-container" style="margin-top: 20px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px;">
+               <h3 style="font-size: 0.9rem; color: #888; margin-bottom: 10px; text-align: left;">ELO HISTORY</h3>
+               <canvas id="eloChart" width="250" height="150"></canvas>
+           </div>
+        </div>
+        
+        <div class="sidebar-actions" style="margin-top: auto; display: flex; flex-direction: column; gap: 10px;">
+           <button id="btnWatchRecord" class="btn-sidebar hidden" style="background: #e2b714; color: #000;">👁️ Xem Kỷ Lục</button>
+           <button id="btnChangelog" class="btn-sidebar">📝 Patch Notes</button>
+           <button id="btnLogout" class="btn-sidebar btn-danger-outline">🚪 Đăng Xuất</button>
+        </div>
       </div>
       
-      <div id="matchmaking-status" class="hidden">
-         <div class="spinner"></div>
-         <p id="status-text">Đang tìm đối thủ...</p>
-         <button id="btnCancel">HỦY TÌM TRẬN</button>
+      <!-- MAIN CONTENT -->
+      <div class="lobby-main">
+         <div id="action-buttons" class="play-modes">
+             <!-- RANKED -->
+             <div class="mode-card ranked-card">
+                 <div class="mode-info">
+                     <h2>RANKED MATCH</h2>
+                     <p>Đấu xếp hạng với người chơi khác. Khẳng định trình độ của bạn!</p>
+                 </div>
+                 <button id="btnRanked" class="btn-play ranked-btn">PLAY RANKED</button>
+             </div>
+             
+             <!-- UNRANKED -->
+             <div class="mode-card normal-card">
+                 <div class="mode-info">
+                     <h2>CASUAL MATCH</h2>
+                     <p>Đấu giao hữu hoặc chơi Solo tự kỷ. Có thể chọn Seed.</p>
+                     <select id="normalSeedSelect" class="seed-select-new">
+                         <option value="Random">Random Seed</option>
+                         <option value="Open">Open</option>
+                         <option value="Isolated">Isolated</option>
+                         <option value="Edge-Heavy">Edge-Heavy</option>
+                         <option value="Center-Heavy">Center-Heavy</option>
+                         <option value="Linear">Linear</option>
+                         <option value="Symmetric">Symmetric</option>
+                         <option value="Trap">Trap</option>
+                     </select>
+                 </div>
+                 <div style="display:flex; flex-direction: column; gap:10px;">
+                     <button id="btnNormal" class="btn-play normal-btn">PLAY NORMAL</button>
+                     <button id="btnSolo" class="btn-play solo-btn">PLAY SOLO</button>
+                 </div>
+             </div>
+         </div>
+         
+         <div id="matchmaking-status" class="hidden status-box">
+             <div class="spinner"></div>
+             <p id="status-text">Đang tìm đối thủ...</p>
+             <button id="btnCancel" class="btn-danger-outline" style="margin-top: 15px;">HỦY TÌM TRẬN</button>
+         </div>
+  
+         <p id="lobbyMessage" class="error"></p>
       </div>
-
-      <p id="lobbyMessage" class="error"></p>
     </div>
   </div>
 
