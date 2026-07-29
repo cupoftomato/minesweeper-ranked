@@ -85,7 +85,17 @@ const btnRejectDraw = document.getElementById('btnRejectDraw');
 
 let myId = null;
 let myUsername = localStorage.getItem('ms_username') || '';
-let myCurrentElo = parseInt(localStorage.getItem('ms_elo')) || 1200;
+let myCurrentElo = parseInt(localStorage.getItem('ms_elo')) || 0;
+
+function formatRank(elo) {
+    if (elo < 400) return `Đồng (${elo})`;
+    if (elo < 800) return `Bạc (${elo})`;
+    if (elo < 1200) return `Vàng (${elo})`;
+    if (elo < 1600) return `Plat (${elo})`;
+    if (elo < 2000) return `Lục bảo (${elo})`;
+    const stars = Math.floor((elo - 2000) / 30) + 1;
+    return `Cao thủ ${stars} sao`;
+}
 
 let boardCols = 16, boardRows = 16, totalSafe = 0;
 let cells = [];
@@ -121,7 +131,7 @@ socket.on('authSuccess', (data) => {
     
     myCurrentElo = elo;
     localStorage.setItem('ms_elo', elo);
-    lobbyElo.innerText = elo;
+    lobbyElo.innerText = formatRank(elo);
     
     renderChart(history);
 });
@@ -179,7 +189,7 @@ function renderChart(history) {
                 tooltip: {
                     callbacks: {
                         title: () => null,
-                        label: (context) => `Elo: ${context.parsed.y}`
+                        label: (context) => `Elo: ${context.parsed.y} - ${formatRank(context.parsed.y)}`
                     }
                 }
             },
@@ -234,7 +244,7 @@ btnRegister.addEventListener('click', () => handleAuth('register'));
 function showLobby(name, elo) {
     authScreen.classList.add('hidden'); gameScreen.classList.add('hidden'); intermissionScreen.classList.add('hidden'); chatContainer.classList.add('hidden');
     lobbyScreen.classList.remove('hidden');
-    lobbyUsername.innerText = name; lobbyElo.innerText = elo;
+    lobbyUsername.innerText = name; lobbyElo.innerText = formatRank(elo);
     actionButtons.classList.remove('hidden'); matchmakingStatus.classList.add('hidden'); gameMessage.classList.add('hidden');
     
     if (localStorage.getItem('ms_saved_replay')) {
@@ -245,7 +255,7 @@ function showLobby(name, elo) {
 }
 
 btnLogout.addEventListener('click', () => {
-    myUsername = ''; myCurrentElo = 1200;
+    myUsername = ''; myCurrentElo = 0;
     localStorage.removeItem('ms_username');
     localStorage.removeItem('ms_elo');
     socket.emit('logout');
@@ -315,14 +325,17 @@ socket.on('intermission_start', (data) => {
     chatContainer.classList.add('hidden');
     
     // Only update info if full data provided (first time)
-    if (data.myElo > 0) {
+    if (data.myElo >= 0) {
         intMyName.innerText = myUsername;
-        intMyElo.innerText = `Elo: ${data.myElo}`;
         intOppName.innerText = data.oppName;
-        intOppElo.innerText = `Elo: ${data.oppElo}`;
         oppNameEl.innerText = data.oppName;
-        myEloEl.innerText = `(Elo: ${data.myElo})`;
-        oppEloEl.innerText = `(Elo: ${data.oppElo})`;
+        // Just for display if they want to show exact elo
+        intMyElo.innerText = `${formatRank(data.myElo)}`;
+        
+        intOppElo.innerText = `${formatRank(data.oppElo)}`;
+        
+        myEloEl.innerText = `(${formatRank(data.myElo)})`;
+        oppEloEl.innerText = `(${formatRank(data.oppElo)})`;
     }
     
     seedNameDisplay.innerText = data.seedType + ' SEED';

@@ -31,19 +31,19 @@ app.post('/api/register', (req, res) => {
     const { username, password } = req.body;
     if (!username || !password || username.length < 3) return res.status(400).json({ error: 'Username/Password không hợp lệ!' });
     if (usersDB[username]) return res.status(400).json({ error: 'Tên tài khoản đã tồn tại!' });
-    usersDB[username] = { password: hashPassword(password), elo: 1200 };
+    usersDB[username] = { password: hashPassword(password), elo: 0, history: [{ time: Date.now(), result: 'start', change: 0, eloAfter: 0 }] };
     saveDB();
-    res.json({ success: true, username, elo: 1200 });
+    res.json({ success: true, username, elo: 0 });
 });
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     const user = usersDB[username];
     
     if (!user) {
-        // Tài khoản bị Render xóa mất -> Tự động đăng ký lại với pass họ vừa nhập, điểm về 1200
-        usersDB[username] = { password: hashPassword(password), elo: 1200, history: [] };
+        // Tài khoản bị Render xóa mất -> Tự động đăng ký lại với pass họ vừa nhập, điểm về 0
+        usersDB[username] = { password: hashPassword(password), elo: 0, history: [{ time: Date.now(), result: 'start', change: 0, eloAfter: 0 }] };
         saveDB();
-        return res.json({ success: true, username, elo: 1200, history: [] });
+        return res.json({ success: true, username, elo: 0, history: [] });
     }
 
     // Nếu tài khoản được auto-auth khôi phục với mật khẩu 'restored', 
@@ -73,15 +73,32 @@ let normalQueue = [];
 let rankedQueue = [];
 
 function getElo(username) {
-  return usersDB[username] ? usersDB[username].elo : 1200;
+  return usersDB[username] ? (usersDB[username].elo || 0) : 0;
 }
 function updateElo(winnerUser, loserUser) {
   if (!winnerUser || !loserUser || !usersDB[winnerUser] || !usersDB[loserUser]) return;
   let wE = usersDB[winnerUser].elo, lE = usersDB[loserUser].elo;
-  let expectedW = 1 / (1 + Math.pow(10, (lE - wE) / 400));
-  let expectedL = 1 / (1 + Math.pow(10, (wE - lE) / 400));
-  usersDB[winnerUser].elo = Math.round(wE + 32 * (1 - expectedW));
-  usersDB[loserUser].elo = Math.round(lE + 32 * (0 - expectedL));
+  
+  if (wE >= 2000) {
+      usersDB[winnerUser].elo = wE + 30; // 1 star
+  } else {
+      let expectedW = 1 / (1 + Math.pow(10, (lE - wE) / 400));
+      let changeW = Math.round(32 * (1 - expectedW));
+      if (changeW < 15) changeW = 15;
+      if (changeW > 30) changeW = 30;
+      usersDB[winnerUser].elo = wE + changeW;
+  }
+  
+  if (lE >= 2000) {
+      usersDB[loserUser].elo = Math.max(2000, lE - 30); // drop to exactly 2000 (Emerald) if they lose all stars
+  } else {
+      let expectedL = 1 / (1 + Math.pow(10, (wE - lE) / 400));
+      let changeL = Math.round(32 * (0 - expectedL));
+      if (changeL > -15) changeL = -15;
+      if (changeL < -30) changeL = -30;
+      usersDB[loserUser].elo = Math.max(0, lE + changeL);
+  }
+  
   saveDB();
 }
 
