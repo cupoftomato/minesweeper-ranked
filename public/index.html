@@ -1,17 +1,177 @@
-{
-  "name": "minesweeper-ranked",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "express": "^5.2.1",
-    "socket.io": "^4.8.3"
-  }
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minesweeper Ranked</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  
+  <!-- AUTH SCREEN -->
+  <div id="auth-screen">
+    <div class="logo">
+      <h1>MINESWEEPER <span class="ranked">RANKED</span></h1>
+      <p>Esports Edition</p>
+    </div>
+    <div class="auth-box">
+      <h2>Đăng nhập / Đăng ký</h2>
+      <input type="text" id="usernameInput" placeholder="Tên đăng nhập (Username)" autocomplete="off">
+      <input type="password" id="passwordInput" placeholder="Mật khẩu (Password)">
+      <p id="authMessage" class="error hidden"></p>
+      <div class="auth-buttons">
+        <button id="btnLogin" class="btn-primary">Đăng Nhập</button>
+        <button id="btnRegister" class="btn-secondary">Tạo Tài Khoản</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOBBY SCREEN -->
+  <div id="lobby-screen" class="hidden">
+    <div class="logo">
+      <h1>MINESWEEPER <span class="ranked">RANKED</span></h1>
+    </div>
+    
+    <div class="lobby-box">
+      <div class="user-profile">
+         Xin chào, <span id="lobbyUsername" class="accent-text"></span>!<br>
+         Elo hiện tại: <span id="lobbyElo" class="gold-text"></span>
+         <div style="margin-top: 10px; display: flex; gap: 10px; justify-content: center;">
+             <button id="btnChangelog" class="btn-secondary" style="padding: 5px 10px; font-size: 0.8rem; background: #2a3a5a;">Patch Notes</button>
+             <button id="btnWatchRecord" class="btn-secondary hidden" style="padding: 5px 10px; font-size: 0.8rem; background: #e2b714; color: #000;">Xem Kỷ Lục</button>
+             <button id="btnLogout" class="btn-logout" style="padding: 5px 10px; font-size: 0.8rem;">Đăng Xuất</button>
+         </div>
+      </div>
+
+      <div id="action-buttons">
+        <div class="normal-action-group" style="display: flex; gap: 10px; align-items: stretch; margin-bottom: 10px;">
+            <button id="btnNormal" class="btn-mode normal-btn" style="flex: 1; margin-bottom: 0;">PLAY NORMAL</button>
+            <button id="btnSolo" class="btn-mode" style="flex: 1; margin-bottom: 0; background: linear-gradient(135deg, #4CAF50, #2E7D32);">PLAY SOLO</button>
+            <select id="normalSeedSelect" class="seed-select" style="padding: 10px; border-radius: 5px; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #4a90e2; cursor: pointer; outline: none; font-weight: bold;">
+                <option value="Random">Random Seed</option>
+                <option value="Open">Open</option>
+                <option value="Isolated">Isolated</option>
+                <option value="Edge-Heavy">Edge-Heavy</option>
+                <option value="Center-Heavy">Center-Heavy</option>
+                <option value="Linear">Linear</option>
+                <option value="Symmetric">Symmetric</option>
+                <option value="Trap">Trap</option>
+            </select>
+        </div>
+        <button id="btnRanked" class="btn-mode ranked-btn">PLAY RANKED</button>
+      </div>
+      
+      <div id="matchmaking-status" class="hidden">
+         <div class="spinner"></div>
+         <p id="status-text">Đang tìm đối thủ...</p>
+         <button id="btnCancel">HỦY TÌM TRẬN</button>
+      </div>
+
+      <p id="lobbyMessage" class="error"></p>
+    </div>
+  </div>
+
+  <!-- INTERMISSION SCREEN -->
+  <div id="intermission-screen" class="hidden">
+      <div id="seed-background" class="seed-bg"></div>
+      <div class="intermission-content">
+          <h2>MATCH FOUND!</h2>
+          <div class="vs-banner">
+              <div class="vs-p1"><span id="int-my-name">BẠN</span> <br><span id="int-my-elo" class="gold-text"></span></div>
+              <div class="vs-vs">VS</div>
+              <div class="vs-p2"><span id="int-opp-name">ĐỐI THỦ</span> <br><span id="int-opp-elo" class="gold-text"></span></div>
+          </div>
+          
+          <div class="seed-info-box">
+              <h3>SEED TYPE</h3>
+              <div id="seed-name-display" class="seed-name">TRAP SEED</div>
+          </div>
+
+          <div class="timer-box">
+              Trận đấu sẽ bắt đầu sau: <br>
+              <span id="intermission-timer">10</span>s
+          </div>
+
+          <div class="vote-box">
+              <button id="btnVoteSkip" class="btn-danger">ĐỔI SEED KHÁC</button>
+              <p id="vote-status-text">0/2 người muốn đổi</p>
+          </div>
+      </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="game-screen" class="hidden">
+    <div class="hud">
+      <div class="player-info p1-info">
+        <div class="name">BẠN <span id="my-elo"></span></div>
+        <div class="strikes" id="p1-strikes">Lỗi: 0/3</div>
+      </div>
+      <div class="tug-of-war">
+         <div class="tug-bar" id="p1-bar" style="width: 50%;"></div>
+         <div class="tug-bar" id="p2-bar" style="width: 50%;"></div>
+      </div>
+      <div class="player-info p2-info">
+        <div class="name"><span id="opp-name">ĐỐI THỦ</span> <span id="opp-elo"></span></div>
+        <div class="strikes">Trạng thái: <span id="p2-status">Bình thường</span></div>
+      </div>
+    </div>
+    
+    <div class="timer" id="timerDisplay">00:00.000</div>
+    <div class="game-actions" style="margin-bottom: 10px; display: flex; gap: 10px;">
+        <button id="btnSurrender" class="btn-danger" style="padding: 5px 10px; font-size: 0.9rem;">Đầu Hàng</button>
+        <button id="btnOfferDraw" class="btn-secondary" style="padding: 5px 10px; font-size: 0.9rem;">Xin Hòa</button>
+    </div>
+
+    <div class="board-container">
+      <div id="freeze-overlay" class="hidden">ĐÓNG BĂNG PHẠT LỖI</div>
+      <div id="minesweeper-board"></div>
+    </div>
+
+    <div id="gameMessage" class="message-banner hidden">
+       <span id="gameResultText"></span><br>
+       <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+           <button id="btnReturnLobby" class="btn-primary">Về Sảnh Chờ</button>
+           <button id="btnSaveRecord" class="btn-secondary hidden" style="background: #e2b714; color: #000;">Lưu Record</button>
+       </div>
+    </div>
+  </div>
+
+  <!-- DRAW MODAL -->
+  <div id="draw-modal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 200; display: flex; justify-content: center; align-items: center;">
+      <div style="background: var(--panel-bg); padding: 20px; border-radius: 8px; text-align: center; border: 2px solid var(--accent);">
+          <h2 style="color: var(--accent); margin-bottom: 15px;">XIN HÒA</h2>
+          <p style="margin-bottom: 20px; font-size: 1.2rem;">Đối thủ muốn xin hòa trận này.</p>
+          <div style="display: flex; gap: 10px;">
+              <button id="btnAcceptDraw" class="btn-primary">Đồng ý</button>
+              <button id="btnRejectDraw" class="btn-danger">Từ chối</button>
+          </div>
+      </div>
+  </div>
+
+  <!-- CHAT BOX -->
+  <div id="chat-container" class="hidden">
+      <div id="chat-messages"></div>
+      <input type="text" id="chat-input" placeholder="Nhấn Enter để chat..." autocomplete="off">
+  </div>
+
+  <!-- CHANGELOG MODAL -->
+  <div id="changelog-modal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 300; display: flex; justify-content: center; align-items: center;">
+      <div style="background: var(--panel-bg); padding: 20px; border-radius: 8px; border: 2px solid var(--accent); max-width: 500px; width: 90%; color: white; max-height: 80vh; overflow-y: auto;">
+          <h2 style="color: var(--accent); margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;">Patch Notes</h2>
+          <div id="changelog-content" style="text-align: left; line-height: 1.5; font-size: 0.95rem;">
+              <p style="color: #888; font-style: italic; margin-bottom: 10px;">Cập nhật gần nhất: Hôm nay</p>
+              <ul style="padding-left: 20px;">
+                  <li style="margin-bottom: 8px;"><b>[Tính năng]</b> Thêm chế độ <b>Chơi Solo (Record Mode)</b>: cho phép tự chọn Seed để luyện tập.</li>
+                  <li style="margin-bottom: 8px;"><b>[Tính năng]</b> Hệ thống <b>Lưu Record (Replay)</b> trực tiếp trên trình duyệt, cho phép bạn xem lại màn chơi Solo của mình.</li>
+                  <li style="margin-bottom: 8px;"><b>[Chỉnh sửa]</b> Cho phép tự do chọn Seed ở hàng đợi Đấu Thường.</li>
+                  <li style="margin-bottom: 8px;"><b>[Sửa lỗi]</b> Sửa lỗi không hiển thị đúng thông báo kết thúc ván đấu khi tự nổ mìn hoặc đầu hàng.</li>
+              </ul>
+          </div>
+          <button id="btnCloseChangelog" class="btn-primary" style="margin-top: 20px; width: 100%;">Đóng</button>
+      </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
