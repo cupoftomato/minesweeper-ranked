@@ -389,7 +389,7 @@ io.on('connection', (socket) => {
       
       if (!usersDB[username] && oldElo !== null) {
           // Server Amnesia Fallback: Re-register transparently
-          usersDB[username] = { password: hashPassword('restored'), elo: oldElo, history: [] };
+          usersDB[username] = { password: hashPassword('restored'), elo: 0, history: [{ time: Date.now(), result: 'start', change: 0, eloAfter: 0 }] };
           saveDB();
       }
       
