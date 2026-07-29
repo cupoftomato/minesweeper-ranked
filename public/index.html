@@ -30,66 +30,97 @@
   <!-- LOBBY SCREEN -->
   <div id="lobby-screen" class="hidden">
     <div class="lobby-layout">
-      <!-- SIDEBAR -->
+      <!-- NAVIGATION TABS -->
       <div class="lobby-sidebar">
         <div class="logo">
           <h1 style="font-size: 2rem;">MINESWEEPER<br><span class="ranked">RANKED</span></h1>
         </div>
         
-        <div class="user-profile-card">
-           <div class="profile-header">
-               <div class="profile-info">
-                   <div id="lobbyUsername" class="accent-text" style="font-size: 1.5rem; text-transform: uppercase;"></div>
-                   <div style="color:#aaa; font-size: 1rem; margin-top: 5px;">Elo: <span id="lobbyElo" class="gold-text"></span></div>
-               </div>
-           </div>
-           
-           <!-- MATCH HISTORY CHART -->
-           <div class="chart-container" style="margin-top: 20px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px;">
-               <h3 style="font-size: 0.9rem; color: #888; margin-bottom: 10px; text-align: left;">ELO HISTORY</h3>
-               <canvas id="eloChart" width="250" height="150"></canvas>
-           </div>
+        <div class="tab-nav">
+           <button class="tab-btn active" data-tab="tab-online">🌐 ONLINE</button>
+           <button class="tab-btn" data-tab="tab-offline">💻 OFFLINE</button>
+           <button class="tab-btn" data-tab="tab-profile">👤 PROFILE</button>
         </div>
         
         <div class="sidebar-actions" style="margin-top: auto; display: flex; flex-direction: column; gap: 10px;">
            <button id="btnWatchRecord" class="btn-sidebar hidden" style="background: #e2b714; color: #000;">👁️ Xem Kỷ Lục</button>
            <button id="btnChangelog" class="btn-sidebar">📝 Patch Notes</button>
-           <button id="btnLogout" class="btn-sidebar btn-danger-outline">🚪 Đăng Xuất</button>
         </div>
       </div>
       
-      <!-- MAIN CONTENT -->
-      <div class="lobby-main">
-         <div id="action-buttons" class="play-modes">
-             <!-- RANKED -->
-             <div class="mode-card ranked-card">
-                 <div class="mode-info">
-                     <h2>RANKED MATCH</h2>
-                     <p>Đấu xếp hạng với người chơi khác. Khẳng định trình độ của bạn!</p>
+      <!-- MAIN CONTENT TABS -->
+      <div class="lobby-main" style="position: relative;">
+         
+         <!-- TAB: ONLINE -->
+         <div id="tab-online" class="tab-content active">
+             <div id="action-buttons-online" class="play-modes">
+                 <div class="mode-card ranked-card">
+                     <div class="mode-info">
+                         <h2>RANKED MATCH</h2>
+                         <p>Đấu xếp hạng với người chơi khác. Khẳng định trình độ của bạn!</p>
+                     </div>
+                     <button id="btnRanked" class="btn-play ranked-btn">PLAY RANKED</button>
                  </div>
-                 <button id="btnRanked" class="btn-play ranked-btn">PLAY RANKED</button>
-             </div>
-             
-             <!-- UNRANKED -->
-             <div class="mode-card normal-card">
-                 <div class="mode-info">
-                     <h2>CASUAL MATCH</h2>
-                     <p>Đấu giao hữu hoặc chơi Solo tự kỷ. Có thể chọn Seed.</p>
-                     <select id="normalSeedSelect" class="seed-select-new">
-                         <option value="Random">Random Seed</option>
-                         <option value="Open">Open</option>
-                         <option value="Isolated">Isolated</option>
-                         <option value="Edge-Heavy">Edge-Heavy</option>
-                         <option value="Center-Heavy">Center-Heavy</option>
-                         <option value="Linear">Linear</option>
-                         <option value="Symmetric">Symmetric</option>
-                         <option value="Trap">Trap</option>
-                     </select>
-                 </div>
-                 <div style="display:flex; flex-direction: column; gap:10px;">
+                 
+                 <div class="mode-card normal-card">
+                     <div class="mode-info">
+                         <h2>CASUAL MATCH</h2>
+                         <p>Đấu giao hữu Online. Chọn Seed tùy thích.</p>
+                         <select id="normalSeedSelect" class="seed-select-new">
+                             <option value="Random">Random Seed</option>
+                             <option value="Open">Open</option>
+                             <option value="Isolated">Isolated</option>
+                             <option value="Edge-Heavy">Edge-Heavy</option>
+                             <option value="Center-Heavy">Center-Heavy</option>
+                             <option value="Linear">Linear</option>
+                             <option value="Symmetric">Symmetric</option>
+                             <option value="Trap">Trap</option>
+                         </select>
+                     </div>
                      <button id="btnNormal" class="btn-play normal-btn">PLAY NORMAL</button>
+                 </div>
+             </div>
+         </div>
+         
+         <!-- TAB: OFFLINE -->
+         <div id="tab-offline" class="tab-content hidden">
+             <div class="play-modes">
+                 <div class="mode-card" style="border-color: #10b981;">
+                     <div class="mode-info">
+                         <h2 style="color: #10b981;">SOLO MODE</h2>
+                         <p>Chơi 1 mình ngay trên máy (Không lag/Ping 0).<br><strong style="color:var(--danger)">Cảnh báo: Đạp 1 quả mìn là thua luôn!</strong></p>
+                         <select id="soloSeedSelect" class="seed-select-new">
+                             <option value="Random">Random Seed</option>
+                             <option value="Open">Open</option>
+                             <option value="Isolated">Isolated</option>
+                             <option value="Edge-Heavy">Edge-Heavy</option>
+                             <option value="Center-Heavy">Center-Heavy</option>
+                             <option value="Linear">Linear</option>
+                             <option value="Symmetric">Symmetric</option>
+                             <option value="Trap">Trap</option>
+                         </select>
+                     </div>
                      <button id="btnSolo" class="btn-play solo-btn">PLAY SOLO</button>
                  </div>
+             </div>
+         </div>
+         
+         <!-- TAB: PROFILE -->
+         <div id="tab-profile" class="tab-content hidden">
+             <div class="user-profile-card">
+                 <div class="profile-header">
+                     <div class="profile-info">
+                         <div id="lobbyUsername" class="accent-text" style="font-size: 1.5rem; text-transform: uppercase;"></div>
+                         <div style="color:#aaa; font-size: 1rem; margin-top: 5px;">Elo: <span id="lobbyElo" class="gold-text"></span></div>
+                     </div>
+                 </div>
+                 
+                 <div class="chart-container" style="margin-top: 20px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px;">
+                     <h3 style="font-size: 0.9rem; color: #888; margin-bottom: 10px; text-align: left;">ELO HISTORY</h3>
+                     <canvas id="eloChart" width="250" height="200"></canvas>
+                 </div>
+                 
+                 <button id="btnLogout" class="btn-sidebar btn-danger-outline" style="margin-top: 20px; text-align: center;">🚪 Đăng Xuất</button>
              </div>
          </div>
          

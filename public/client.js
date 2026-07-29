@@ -28,6 +28,23 @@ const btnWatchRecord = document.getElementById('btnWatchRecord');
 const changelogModal = document.getElementById('changelog-modal');
 const btnCloseChangelog = document.getElementById('btnCloseChangelog');
 
+// Tab Navigation
+const tabBtns = document.querySelectorAll('.tab-btn');
+const tabContents = document.querySelectorAll('.tab-content');
+
+tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        tabBtns.forEach(b => b.classList.remove('active'));
+        tabContents.forEach(c => c.classList.add('hidden', 'active')); // Reset classes
+        tabContents.forEach(c => { c.classList.remove('active'); c.classList.add('hidden'); });
+        
+        btn.classList.add('active');
+        const targetId = btn.getAttribute('data-tab');
+        document.getElementById(targetId).classList.remove('hidden');
+        document.getElementById(targetId).classList.add('active');
+    });
+});
+
 // Intermission DOM
 const intMyName = document.getElementById('int-my-name');
 const intMyElo = document.getElementById('int-my-elo');
@@ -258,7 +275,7 @@ btnRanked.addEventListener('click', () => startMatchmaking('ranked'));
 
 btnSolo.addEventListener('click', () => {
     let seedPref = 'Random';
-    const select = document.getElementById('normalSeedSelect');
+    const select = document.getElementById('soloSeedSelect');
     if (select) seedPref = select.value;
     
     isSoloMode = true;
@@ -266,10 +283,7 @@ btnSolo.addEventListener('click', () => {
     isReplaying = false;
     currentReplay = { seed: seedPref, date: new Date().toLocaleDateString(), timeElapsed: 0, events: [] };
     
-    // Hide UI
-    actionButtons.classList.add('hidden');
-    
-    socket.emit('startSolo', seedPref);
+    startOfflineSolo(seedPref);
 });
 
 btnChangelog.addEventListener('click', () => changelogModal.classList.remove('hidden'));
@@ -431,13 +445,40 @@ function createBoard(r, c) {
         if (isFrozen) return;
         if (e.button === 0) {
             // If already open, chord. Else normal click.
-            if (cell.classList.contains('open')) {
-                socket.emit('chordCell', {r: i, c: j});
+            if (cell.classList.contains('open') || cell.classList.contains('predict-open')) {
+                if (isSoloMode) {
+                    soloChordCell(i, j);
+                } else {
+                    // prediction for chord
+                    getNeighbors(i, j).forEach(n => {
+                        if (!cells[n.r][n.c].classList.contains('open') && !cells[n.r][n.c].classList.contains('flag')) {
+                            cells[n.r][n.c].classList.add('predict-open');
+                        }
+                    });
+                    socket.emit('chordCell', {r: i, c: j});
+                }
             } else {
-                socket.emit('clickCell', {r: i, c: j});
+                if (!cell.classList.contains('flag')) {
+                    if (isSoloMode) {
+                        soloClickCell(i, j);
+                    } else {
+                        cell.classList.add('predict-open'); // Client prediction
+                        socket.emit('clickCell', {r: i, c: j});
+                    }
+                }
             }
         }
-        else if (e.button === 2) socket.emit('flagCell', {r: i, c: j});
+        else if (e.button === 2) {
+            if (isSoloMode) {
+                soloFlagCell(i, j);
+            } else {
+                if (!cell.classList.contains('open')) {
+                    cell.classList.toggle('flag'); // Client prediction
+                    cell.innerText = cell.classList.contains('flag') ? '🚩' : '';
+                }
+                socket.emit('flagCell', {r: i, c: j});
+            }
+        }
       });
       cell.addEventListener('contextmenu', e => e.preventDefault());
       
@@ -460,7 +501,7 @@ socket.on('reveal', (revealedArr) => {
   revealedArr.forEach(item => {
     const el = cells[item.r][item.c];
     if (!el.classList.contains('open')) {
-      el.classList.add('open'); el.classList.remove('flag');
+      el.classList.add('open'); el.classList.remove('flag', 'predict-open');
       el.innerText = item.val > 0 ? item.val : (item.val === -1 ? '💣' : '');
       if (item.val > 0) el.classList.add(`val-${item.val}`);
     }
@@ -743,3 +784,221 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
+
+// ================= OFFLINE ENGINE (0 PING) =================
+let offlineGrid = [];
+let offlineSafeLeft = 0;
+let offlineRows = 16;
+let offlineCols = 16;
+let offlineMines = 50;
+let offlineFirstClick = true;
+let offlineGameOver = false;
+
+function startOfflineSolo(seed) {
+    lobbyScreen.classList.add('hidden');
+    gameScreen.classList.remove('hidden');
+    chatContainer.classList.add('hidden');
+    
+    boardRows = offlineRows;
+    boardCols = offlineCols;
+    offlineSafeLeft = offlineRows * offlineCols - offlineMines;
+    offlineFirstClick = true;
+    offlineGameOver = false;
+    
+    p1Bar.style.width = `100%`; p2Bar.style.width = `0%`;
+    p1StrikesEl.innerText = `Lỗi: 0/1 (Thua luôn)`;
+    document.querySelector('.p2-info').style.opacity = '0';
+    p2Bar.style.opacity = '0';
+    
+    isFrozen = false;
+    gameMessage.classList.add('hidden');
+    freezeOverlay.classList.add('hidden');
+    btnReturnLobby.classList.add('hidden');
+    btnSaveRecord.classList.add('hidden');
+    
+    createBoard(offlineRows, offlineCols);
+    startTime = Date.now();
+    replayStartTime = startTime;
+    timerInterval = setInterval(updateTimer, 10);
+    
+    if (isRecording && currentReplay) {
+        currentReplay.events.push({ t: 0, type: 'game_start', data: { rows: 16, cols: 16, totalSafe: offlineSafeLeft, startReveal: [] } });
+    }
+}
+
+function generateOfflineGrid(firstR, firstC) {
+    offlineGrid = Array(offlineRows).fill().map(() => Array(offlineCols).fill(0));
+    let minesPlaced = 0;
+    while(minesPlaced < offlineMines) {
+        let r = Math.floor(Math.random() * offlineRows);
+        let c = Math.floor(Math.random() * offlineCols);
+        // Protect 3x3 around first click
+        if (Math.abs(r - firstR) <= 1 && Math.abs(c - firstC) <= 1) continue;
+        if (offlineGrid[r][c] !== -1) {
+            offlineGrid[r][c] = -1;
+            minesPlaced++;
+        }
+    }
+    for (let r = 0; r < offlineRows; r++) {
+        for (let c = 0; c < offlineCols; c++) {
+            if (offlineGrid[r][c] === -1) continue;
+            let count = 0;
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    let nr = r + dr, nc = c + dc;
+                    if (nr>=0 && nr<offlineRows && nc>=0 && nc<offlineCols && offlineGrid[nr][nc] === -1) {
+                        count++;
+                    }
+                }
+            }
+            offlineGrid[r][c] = count;
+        }
+    }
+}
+
+function soloClickCell(r, c) {
+    if (offlineGameOver) return;
+    const el = cells[r][c];
+    if (el.classList.contains('open') || el.classList.contains('flag')) return;
+    
+    if (offlineFirstClick) {
+        generateOfflineGrid(r, c);
+        offlineFirstClick = false;
+    }
+    
+    if (offlineGrid[r][c] === -1) {
+        // Hit mine
+        triggerOfflineGameOver(false, 'Bạn đạp trúng mìn!');
+        return;
+    }
+    
+    let reveals = [];
+    let q = [{r, c}];
+    let visited = new Set();
+    visited.add(`${r},${c}`);
+    
+    while(q.length > 0) {
+        let curr = q.shift();
+        let val = offlineGrid[curr.r][curr.c];
+        reveals.push({r: curr.r, c: curr.c, val: val});
+        offlineSafeLeft--;
+        
+        if (val === 0) {
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    let nr = curr.r + dr, nc = curr.c + dc;
+                    if (nr>=0 && nr<offlineRows && nc>=0 && nc<offlineCols) {
+                        if (!visited.has(`${nr},${nc}`) && !cells[nr][nc].classList.contains('flag') && !cells[nr][nc].classList.contains('open')) {
+                            visited.add(`${nr},${nc}`);
+                            q.push({r: nr, c: nc});
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Apply reveals visually
+    reveals.forEach(item => {
+        const cellEl = cells[item.r][item.c];
+        cellEl.classList.add('open');
+        cellEl.classList.remove('flag', 'predict-open');
+        cellEl.innerText = item.val > 0 ? item.val : '';
+        if (item.val > 0) cellEl.classList.add(`val-${item.val}`);
+    });
+    
+    if (isRecording && currentReplay) {
+        currentReplay.events.push({ t: Date.now() - replayStartTime, type: 'reveal', data: reveals });
+    }
+    
+    if (offlineSafeLeft === 0) {
+        triggerOfflineGameOver(true, 'Bạn đã thắng (Solo)!');
+    }
+}
+
+function soloFlagCell(r, c) {
+    if (offlineGameOver) return;
+    const el = cells[r][c];
+    if (el.classList.contains('open')) return;
+    let isFlagged = el.classList.toggle('flag');
+    el.innerText = isFlagged ? '🚩' : '';
+    
+    if (isRecording && currentReplay) {
+        currentReplay.events.push({ t: Date.now() - replayStartTime, type: 'flagResult', data: {r, c, isFlagged} });
+    }
+}
+
+function soloChordCell(r, c) {
+    if (offlineGameOver) return;
+    const el = cells[r][c];
+    if (!el.classList.contains('open')) return;
+    
+    let val = offlineGrid[r][c];
+    if (val <= 0) return;
+    
+    let flags = 0;
+    let neighbors = [];
+    for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+            if (dr===0 && dc===0) continue;
+            let nr = r + dr, nc = c + dc;
+            if (nr>=0 && nr<offlineRows && nc>=0 && nc<offlineCols) {
+                neighbors.push({r: nr, c: nc});
+                if (cells[nr][nc].classList.contains('flag')) flags++;
+            }
+        }
+    }
+    
+    if (flags === val) {
+        neighbors.forEach(n => {
+            if (!cells[n.r][n.c].classList.contains('open') && !cells[n.r][n.c].classList.contains('flag')) {
+                soloClickCell(n.r, n.c);
+            }
+        });
+    }
+}
+
+function triggerOfflineGameOver(isWin, reason) {
+    offlineGameOver = true;
+    isFrozen = true;
+    clearInterval(timerInterval);
+    
+    // Reveal all mines if lose
+    if (!isWin) {
+        let mineReveals = [];
+        for (let r=0; r<offlineRows; r++) {
+            for (let c=0; c<offlineCols; c++) {
+                if (offlineGrid[r][c] === -1 && !cells[r][c].classList.contains('flag')) {
+                    cells[r][c].classList.add('open');
+                    cells[r][c].classList.add('val--1');
+                    cells[r][c].innerText = '💣';
+                    mineReveals.push({r, c, val: -1});
+                } else if (offlineGrid[r][c] !== -1 && cells[r][c].classList.contains('flag')) {
+                    cells[r][c].innerText = '❌'; // false flag
+                }
+            }
+        }
+        if (isRecording && currentReplay && mineReveals.length > 0) {
+            currentReplay.events.push({ t: Date.now() - replayStartTime, type: 'reveal', data: mineReveals });
+        }
+        
+        freezeOverlay.innerText = 'BÙM!';
+        freezeOverlay.classList.remove('hidden');
+        document.querySelector('.board-container').classList.add('shake');
+        setTimeout(() => document.querySelector('.board-container').classList.remove('shake'), 500);
+    }
+    
+    let masterGrid = null;
+    if (isRecording && currentReplay) {
+        currentReplay.timeElapsed = Date.now() - replayStartTime;
+        masterGrid = offlineGrid; // save full grid for replay
+        currentReplay.events.push({ t: currentReplay.timeElapsed, type: 'gameOver', data: { winner: isWin ? myId : null, reason, masterGrid } });
+    }
+    
+    setTimeout(() => {
+        gameMessage.classList.remove('hidden');
+        gameResultText.innerText = reason;
+        btnReturnLobby.classList.remove('hidden');
+        if (isRecording) btnSaveRecord.classList.remove('hidden');
+    }, 1500);
+}
