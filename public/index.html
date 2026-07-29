@@ -184,6 +184,7 @@
     <div class="game-actions" style="margin-bottom: 10px; display: flex; gap: 10px;">
         <button id="btnSurrender" class="btn-danger" style="padding: 5px 10px; font-size: 0.9rem;">Đầu Hàng</button>
         <button id="btnOfferDraw" class="btn-secondary" style="padding: 5px 10px; font-size: 0.9rem;">Xin Hòa</button>
+        <button id="btnOfferChangeSeed" class="btn-secondary" style="padding: 5px 10px; font-size: 0.9rem;">Đổi Seed</button>
     </div>
 
     <div class="board-container">
@@ -201,14 +202,22 @@
   </div>
 
   <!-- DRAW MODAL -->
-  <div id="draw-modal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 200; display: flex; justify-content: center; align-items: center;">
-      <div style="background: var(--panel-bg); padding: 20px; border-radius: 8px; text-align: center; border: 2px solid var(--accent);">
-          <h2 style="color: var(--accent); margin-bottom: 15px;">XIN HÒA</h2>
-          <p style="margin-bottom: 20px; font-size: 1.2rem;">Đối thủ muốn xin hòa trận này.</p>
-          <div style="display: flex; gap: 10px;">
-              <button id="btnAcceptDraw" class="btn-primary">Đồng ý</button>
-              <button id="btnRejectDraw" class="btn-danger">Từ chối</button>
-          </div>
+  <div id="draw-modal" class="hidden" style="position: fixed; bottom: 20px; right: 20px; width: 250px; background: rgba(30,41,59,0.95); padding: 15px; border-radius: 8px; border: 1px solid var(--accent); z-index: 200; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-align: center;">
+      <h3 style="color: var(--accent); margin-bottom: 10px; font-size: 1.1rem;">XIN HÒA</h3>
+      <p style="margin-bottom: 15px; font-size: 0.9rem;">Đối thủ muốn xin hòa trận này.</p>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+          <button id="btnAcceptDraw" class="btn-primary" style="padding: 5px 10px; font-size: 0.8rem;">Đồng ý</button>
+          <button id="btnRejectDraw" class="btn-danger" style="padding: 5px 10px; font-size: 0.8rem;">Từ chối</button>
+      </div>
+  </div>
+
+  <!-- CHANGE SEED MODAL -->
+  <div id="change-seed-modal" class="hidden" style="position: fixed; bottom: 150px; right: 20px; width: 250px; background: rgba(30,41,59,0.95); padding: 15px; border-radius: 8px; border: 1px solid #fbbf24; z-index: 200; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-align: center;">
+      <h3 style="color: #fbbf24; margin-bottom: 10px; font-size: 1.1rem;">ĐỔI SEED</h3>
+      <p style="margin-bottom: 15px; font-size: 0.9rem;">Đối thủ muốn đổi Seed chơi lại.</p>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+          <button id="btnAcceptChangeSeed" class="btn-primary" style="padding: 5px 10px; font-size: 0.8rem;">Đồng ý</button>
+          <button id="btnRejectChangeSeed" class="btn-danger" style="padding: 5px 10px; font-size: 0.8rem;">Từ chối</button>
       </div>
   </div>
 

@@ -603,6 +603,33 @@ io.on('connection', (socket) => {
      if (oppId) io.to(oppId).emit('drawRejected');
   });
 
+  socket.on('offerChangeSeed', () => {
+     if (!socket.roomId) return;
+     const room = rooms[socket.roomId];
+     if (!room || room.status !== 'playing') return;
+     let oppId = Object.keys(room.players).find(id => id !== socket.id);
+     if (oppId) io.to(oppId).emit('changeSeedOffered');
+  });
+
+  socket.on('acceptChangeSeed', () => {
+     if (!socket.roomId) return;
+     const room = rooms[socket.roomId];
+     if (!room || room.status !== 'playing') return;
+     let p1Id = Object.keys(room.players)[0];
+     let p2Id = Object.keys(room.players)[1];
+     let type = room.type;
+     delete rooms[socket.roomId]; // Delete current game (no elo change)
+     createIntermission(p1Id, p2Id, type);
+  });
+
+  socket.on('rejectChangeSeed', () => {
+     if (!socket.roomId) return;
+     const room = rooms[socket.roomId];
+     if (!room || room.status !== 'playing') return;
+     let oppId = Object.keys(room.players).find(id => id !== socket.id);
+     if (oppId) io.to(oppId).emit('changeSeedRejected');
+  });
+
   socket.on('disconnect', () => {
     removeFromAllQueues(socket.id);
     if (socket.roomId && rooms[socket.roomId]) {

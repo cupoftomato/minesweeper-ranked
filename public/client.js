@@ -83,6 +83,11 @@ const drawModal = document.getElementById('draw-modal');
 const btnAcceptDraw = document.getElementById('btnAcceptDraw');
 const btnRejectDraw = document.getElementById('btnRejectDraw');
 
+const btnOfferChangeSeed = document.getElementById('btnOfferChangeSeed');
+const changeSeedModal = document.getElementById('change-seed-modal');
+const btnAcceptChangeSeed = document.getElementById('btnAcceptChangeSeed');
+const btnRejectChangeSeed = document.getElementById('btnRejectChangeSeed');
+
 let myId = null;
 let myUsername = localStorage.getItem('ms_username') || '';
 let myCurrentElo = parseInt(localStorage.getItem('ms_elo')) || 0;
@@ -660,7 +665,36 @@ btnRejectDraw.addEventListener('click', () => {
 });
 
 socket.on('drawRejected', () => {
-    addSysMsg('Đối thủ đã từ chối lời mời hòa.');
+    alert("Đối thủ đã từ chối hòa.");
+});
+
+// CHANGE SEED
+btnOfferChangeSeed.addEventListener('click', () => {
+    btnOfferChangeSeed.disabled = true;
+    btnOfferChangeSeed.innerText = 'Đã xin đổi';
+    socket.emit('offerChangeSeed');
+    setTimeout(() => {
+        btnOfferChangeSeed.disabled = false;
+        btnOfferChangeSeed.innerText = 'Đổi Seed';
+    }, 10000);
+});
+
+socket.on('changeSeedOffered', () => {
+    changeSeedModal.classList.remove('hidden');
+});
+
+btnAcceptChangeSeed.addEventListener('click', () => {
+    changeSeedModal.classList.add('hidden');
+    socket.emit('acceptChangeSeed');
+});
+
+btnRejectChangeSeed.addEventListener('click', () => {
+    changeSeedModal.classList.add('hidden');
+    socket.emit('rejectChangeSeed');
+});
+
+socket.on('changeSeedRejected', () => {
+    alert("Đối thủ đã từ chối đổi Seed.");
 });
 
 
