@@ -92,8 +92,7 @@ function formatRank(elo) {
     if (elo < 800) return `Bạc (${elo})`;
     if (elo < 1200) return `Vàng (${elo})`;
     if (elo < 1600) return `Plat (${elo})`;
-    if (elo < 2000) return `Lục bảo (${elo})`;
-    const stars = Math.floor((elo - 2000) / 30) + 1;
+    const stars = Math.floor((elo - 1600) / 30) + 1;
     return `Cao thủ ${stars} sao`;
 }
 
@@ -144,16 +143,15 @@ function renderChart(history) {
         eloChartInstance.destroy();
     }
     
-    // If no history, just show one point
     let labels = [];
     let dataPoints = [];
     
     if (!history || history.length === 0) {
-        labels = ['Start'];
-        dataPoints = [1200];
+        labels = ['Bắt đầu'];
+        dataPoints = [0];
     } else {
-        // Take last 10 matches
-        let recent = history.slice(-10);
+        // Take last 5 matches
+        let recent = history.slice(-5);
         // Add a starting point which is the elo before the first match in this slice
         let startElo = recent[0].eloAfter - recent[0].change;
         labels.push('');

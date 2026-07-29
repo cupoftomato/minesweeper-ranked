@@ -19,12 +19,24 @@ if (fs.existsSync(USERS_FILE)) {
     try { usersDB = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')); }
     catch (e) { usersDB = {}; }
 }
+
+// Force reset all users to 0
+let didReset = false;
+for (let u in usersDB) {
+    if (usersDB[u].elo !== 0) {
+        usersDB[u].elo = 0;
+        usersDB[u].history = [{ time: Date.now(), result: 'start', change: 0, eloAfter: 0 }];
+        didReset = true;
+    }
+}
+
 function saveDB() {
     fs.writeFileSync(USERS_FILE, JSON.stringify(usersDB, null, 2));
 }
 function hashPassword(password) {
     return crypto.createHash('sha256').update(password).digest('hex');
 }
+if (didReset) saveDB();
 
 // Auth APIs
 app.post('/api/register', (req, res) => {
@@ -79,7 +91,7 @@ function updateElo(winnerUser, loserUser) {
   if (!winnerUser || !loserUser || !usersDB[winnerUser] || !usersDB[loserUser]) return;
   let wE = usersDB[winnerUser].elo, lE = usersDB[loserUser].elo;
   
-  if (wE >= 2000) {
+  if (wE >= 1600) {
       usersDB[winnerUser].elo = wE + 30; // 1 star
   } else {
       let expectedW = 1 / (1 + Math.pow(10, (lE - wE) / 400));
@@ -89,8 +101,8 @@ function updateElo(winnerUser, loserUser) {
       usersDB[winnerUser].elo = wE + changeW;
   }
   
-  if (lE >= 2000) {
-      usersDB[loserUser].elo = Math.max(2000, lE - 30); // drop to exactly 2000 (Emerald) if they lose all stars
+  if (lE >= 1600) {
+      usersDB[loserUser].elo = Math.max(1600, lE - 30); // drop to exactly 1600 (Plat cutoff) if they lose all stars
   } else {
       let expectedL = 1 / (1 + Math.pow(10, (wE - lE) / 400));
       let changeL = Math.round(32 * (0 - expectedL));
