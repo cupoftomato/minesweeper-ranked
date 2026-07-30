@@ -119,7 +119,7 @@ function getRandomSeedType() {
 function createIntermission(p1Id, p2Id, type, forcedSeed = null) {
   let roomId = crypto.randomUUID();
   let seedType = forcedSeed ? forcedSeed : getRandomSeedType();
-  let status = type === 'normal' ? 'voting' : 'intermission';
+  let status = 'voting';
   
   rooms[roomId] = {
     id: roomId, type: type, seedType: seedType, players: {}, status: status,
@@ -133,17 +133,11 @@ function createIntermission(p1Id, p2Id, type, forcedSeed = null) {
     if(sock) {
       sock.join(roomId); sock.roomId = roomId;
       let oppId = pid === p1Id ? p2Id : p1Id;
-      if (status === 'voting') {
-          sock.emit('intermission_voting', {
-            roomId: roomId,
-            myElo: getElo(socketUsers[pid]), oppElo: getElo(socketUsers[oppId]), oppName: socketUsers[oppId]
-          });
-      } else {
-          sock.emit('intermission_start', {
-            roomId: roomId, seedType: room.seedType,
-            myElo: getElo(socketUsers[pid]), oppElo: getElo(socketUsers[oppId]), oppName: socketUsers[oppId]
-          });
-      }
+      
+      sock.emit('intermission_voting', {
+          roomId: roomId,
+          myElo: getElo(socketUsers[pid]), oppElo: getElo(socketUsers[oppId]), oppName: socketUsers[oppId]
+      });
     }
   });
 
