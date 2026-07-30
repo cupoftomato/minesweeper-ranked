@@ -288,7 +288,9 @@ function generateMasterBoard(type) {
 
   // Ensure no mine is completely isolated (must have at least 1 non-mine neighbor)
   let changed = true;
-  while(changed) {
+  let maxPasses = 100;
+  while(changed && maxPasses > 0) {
+      maxPasses--;
       changed = false;
       for (let r = 0; r < ROWS; r++) {
           for (let c = 0; c < COLS; c++) {
