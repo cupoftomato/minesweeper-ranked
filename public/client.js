@@ -11,6 +11,7 @@ const passwordInput = document.getElementById('passwordInput');
 const authMessage = document.getElementById('authMessage');
 const btnLogin = document.getElementById('btnLogin');
 const btnRegister = document.getElementById('btnRegister');
+const btnOfflinePlay = document.getElementById('btnOfflinePlay');
 
 const lobbyUsername = document.getElementById('lobbyUsername');
 const lobbyElo = document.getElementById('lobbyElo');
@@ -244,6 +245,15 @@ async function handleAuth(action) {
 btnLogin.addEventListener('click', () => handleAuth('login'));
 btnRegister.addEventListener('click', () => handleAuth('register'));
 
+if (btnOfflinePlay) {
+    btnOfflinePlay.addEventListener('click', () => {
+        myUsername = 'GUEST';
+        showLobby(myUsername, 0);
+        // Switch to offline tab
+        document.querySelector('[data-tab="tab-offline"]').click();
+    });
+}
+
 function showLobby(name, elo) {
     authScreen.classList.add('hidden'); gameScreen.classList.add('hidden'); intermissionScreen.classList.add('hidden'); chatContainer.classList.add('hidden');
     lobbyScreen.classList.remove('hidden');
@@ -251,9 +261,9 @@ function showLobby(name, elo) {
     actionButtons.classList.remove('hidden'); matchmakingStatus.classList.add('hidden'); gameMessage.classList.add('hidden');
     
     if (localStorage.getItem('ms_saved_replay')) {
-        btnWatchRecord.classList.remove('hidden');
+        // btnWatchRecord.classList.remove('hidden');
     } else {
-        btnWatchRecord.classList.add('hidden');
+        // btnWatchRecord.classList.add('hidden');
     }
 }
 
