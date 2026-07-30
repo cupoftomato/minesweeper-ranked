@@ -286,6 +286,44 @@ function generateMasterBoard(type) {
       }
   }
 
+  // Ensure no mine is completely isolated (must have at least 1 non-mine neighbor)
+  let changed = true;
+  while(changed) {
+      changed = false;
+      for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+              if (grid[r][c] === -1) {
+                  let safeCount = 0;
+                  let mineNeighbors = [];
+                  for (let dr = -1; dr <= 1; dr++) {
+                      for (let dc = -1; dc <= 1; dc++) {
+                          if (dr === 0 && dc === 0) continue;
+                          let nr = r + dr, nc = c + dc;
+                          if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+                              if (grid[nr][nc] !== -1) safeCount++;
+                              else mineNeighbors.push({r: nr, c: nc});
+                          }
+                      }
+                  }
+                  if (safeCount === 0 && mineNeighbors.length > 0) {
+                      let neighborToMove = mineNeighbors[Math.floor(Math.random() * mineNeighbors.length)];
+                      let moved = false;
+                      while(!moved) {
+                          let randR = Math.floor(Math.random() * ROWS);
+                          let randC = Math.floor(Math.random() * COLS);
+                          if (grid[randR][randC] !== -1) {
+                              grid[randR][randC] = -1;
+                              grid[neighborToMove.r][neighborToMove.c] = 0;
+                              moved = true;
+                              changed = true;
+                          }
+                      }
+                  }
+              }
+          }
+      }
+  }
+
   // Calculate numbers
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {

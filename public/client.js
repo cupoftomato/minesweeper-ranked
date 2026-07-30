@@ -920,6 +920,48 @@ function generateOfflineGrid(firstR, firstC) {
             minesPlaced++;
         }
     }
+    
+    // Ensure no mine is completely isolated
+    let changed = true;
+    while(changed) {
+        changed = false;
+        for (let r = 0; r < offlineRows; r++) {
+            for (let c = 0; c < offlineCols; c++) {
+                if (offlineGrid[r][c] === -1) {
+                    let safeCount = 0;
+                    let mineNeighbors = [];
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            if (dr === 0 && dc === 0) continue;
+                            let nr = r + dr, nc = c + dc;
+                            if (nr >= 0 && nr < offlineRows && nc >= 0 && nc < offlineCols) {
+                                if (offlineGrid[nr][nc] !== -1) safeCount++;
+                                else mineNeighbors.push({r: nr, c: nc});
+                            }
+                        }
+                    }
+                    if (safeCount === 0 && mineNeighbors.length > 0) {
+                        let neighborToMove = mineNeighbors[Math.floor(Math.random() * mineNeighbors.length)];
+                        let moved = false;
+                        while(!moved) {
+                            let randR = Math.floor(Math.random() * offlineRows);
+                            let randC = Math.floor(Math.random() * offlineCols);
+                            // Avoid placing on the first click protected 3x3 area
+                            if (Math.abs(randR - firstR) <= 1 && Math.abs(randC - firstC) <= 1) continue;
+                            
+                            if (offlineGrid[randR][randC] !== -1) {
+                                offlineGrid[randR][randC] = -1;
+                                offlineGrid[neighborToMove.r][neighborToMove.c] = 0;
+                                moved = true;
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     for (let r = 0; r < offlineRows; r++) {
         for (let c = 0; c < offlineCols; c++) {
             if (offlineGrid[r][c] === -1) continue;
