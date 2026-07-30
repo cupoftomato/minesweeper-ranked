@@ -20,23 +20,12 @@ if (fs.existsSync(USERS_FILE)) {
     catch (e) { usersDB = {}; }
 }
 
-// Force reset all users to 0
-let didReset = false;
-for (let u in usersDB) {
-    if (usersDB[u].elo !== 0) {
-        usersDB[u].elo = 0;
-        usersDB[u].history = [{ time: Date.now(), result: 'start', change: 0, eloAfter: 0 }];
-        didReset = true;
-    }
-}
-
 function saveDB() {
     fs.writeFileSync(USERS_FILE, JSON.stringify(usersDB, null, 2));
 }
 function hashPassword(password) {
     return crypto.createHash('sha256').update(password).digest('hex');
 }
-if (didReset) saveDB();
 
 // Auth APIs
 app.post('/api/register', (req, res) => {
@@ -389,7 +378,7 @@ io.on('connection', (socket) => {
       
       if (!usersDB[username] && oldElo !== null) {
           // Server Amnesia Fallback: Re-register transparently
-          usersDB[username] = { password: hashPassword('restored'), elo: 0, history: [{ time: Date.now(), result: 'start', change: 0, eloAfter: 0 }] };
+          usersDB[username] = { password: hashPassword('restored'), elo: oldElo, history: [{ time: Date.now(), result: 'start', change: 0, eloAfter: oldElo }] };
           saveDB();
       }
       
