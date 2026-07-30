@@ -485,28 +485,28 @@ function createBoard(r, c) {
       cell.addEventListener('mousedown', (e) => {
         if (isFrozen) return;
         
-        // Chording: Middle click OR Left+Right OR Left click on an opened cell
-        if (e.button === 1 || e.buttons === 3 || (e.button === 0 && (cell.classList.contains('open') || cell.classList.contains('predict-open')))) {
-            if (isSoloMode) {
-                soloChordCell(i, j);
-            } else {
-                // prediction for chord
-                getNeighbors(i, j).forEach(n => {
-                    if (!cells[n.r][n.c].classList.contains('open') && !cells[n.r][n.c].classList.contains('flag')) {
-                        cells[n.r][n.c].classList.add('predict-open');
-                    }
-                });
-                socket.emit('chordCell', {r: i, c: j});
-            }
-        }
-        // Normal Left Click
-        else if (e.button === 0) {
-            if (!cell.classList.contains('flag')) {
+        if (e.button === 0) {
+            // Chording: Left click on an opened cell
+            if (cell.classList.contains('open') || cell.classList.contains('predict-open')) {
                 if (isSoloMode) {
-                    soloClickCell(i, j);
+                    soloChordCell(i, j);
                 } else {
-                    cell.classList.add('predict-open'); // Client prediction
-                    socket.emit('clickCell', {r: i, c: j});
+                    // prediction for chord
+                    getNeighbors(i, j).forEach(n => {
+                        if (!cells[n.r][n.c].classList.contains('open') && !cells[n.r][n.c].classList.contains('flag')) {
+                            cells[n.r][n.c].classList.add('predict-open');
+                        }
+                    });
+                    socket.emit('chordCell', {r: i, c: j});
+                }
+            } else {
+                if (!cell.classList.contains('flag')) {
+                    if (isSoloMode) {
+                        soloClickCell(i, j);
+                    } else {
+                        cell.classList.add('predict-open'); // Client prediction
+                        socket.emit('clickCell', {r: i, c: j});
+                    }
                 }
             }
         }
