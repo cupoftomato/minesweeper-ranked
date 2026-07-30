@@ -270,13 +270,7 @@ btnLogout.addEventListener('click', () => {
 function startMatchmaking(type) {
   actionButtons.classList.add('hidden'); matchmakingStatus.classList.remove('hidden');
   
-  let seedPref = 'Random';
-  if (type === 'normal') {
-      const select = document.getElementById('normalSeedSelect');
-      if (select) seedPref = select.value;
-  }
-  
-  socket.emit('findMatch', { type: type, seedPref: seedPref });
+  socket.emit('findMatch', { type: type });
   findTime = 0; statusText.innerText = `Đang tìm đối thủ (${type.toUpperCase()})... 0s`;
   findingInterval = setInterval(() => {
     findTime++; statusText.innerText = `Đang tìm đối thủ (${type.toUpperCase()})... ${findTime}s`;
@@ -321,13 +315,44 @@ btnCancel.addEventListener('click', () => {
 });
 
 // ================= INTERMISSION =================
+socket.on('intermission_voting', (data) => {
+    clearInterval(findingInterval);
+    lobbyScreen.classList.add('hidden');
+    intermissionScreen.classList.remove('hidden');
+    chatContainer.classList.add('hidden');
+    document.getElementById('votingUI').classList.remove('hidden');
+    document.getElementById('countdownUI').classList.add('hidden');
+    
+    intMyName.innerText = myUsername;
+    intOppName.innerText = data.oppName;
+    oppNameEl.innerText = data.oppName;
+    intMyElo.innerText = `${formatRank(data.myElo)}`;
+    intOppElo.innerText = `${formatRank(data.oppElo)}`;
+    myEloEl.innerText = `(${formatRank(data.myElo)})`;
+    oppEloEl.innerText = `(${formatRank(data.oppElo)})`;
+    
+    const voteStatus = document.getElementById('votingStatus');
+    voteStatus.innerText = 'Vui lòng chọn Seed';
+    
+    document.querySelectorAll('.btn-vote-seed').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('.btn-vote-seed').forEach(b => b.disabled = true);
+            voteStatus.innerText = 'Đang chờ đối thủ...';
+            socket.emit('voteSeed', btn.getAttribute('data-seed'));
+        };
+        btn.disabled = false;
+    });
+});
+
 socket.on('intermission_start', (data) => {
     clearInterval(findingInterval);
     lobbyScreen.classList.add('hidden');
     intermissionScreen.classList.remove('hidden');
     chatContainer.classList.add('hidden');
+    document.getElementById('votingUI').classList.add('hidden');
+    document.getElementById('countdownUI').classList.remove('hidden');
     
-    // Only update info if full data provided (first time)
+    // Only update info if full data provided (first time, for ranked or after voting)
     if (data.myElo >= 0) {
         intMyName.innerText = myUsername;
         intOppName.innerText = data.oppName;
@@ -459,28 +484,29 @@ function createBoard(r, c) {
       
       cell.addEventListener('mousedown', (e) => {
         if (isFrozen) return;
-        if (e.button === 0) {
-            // If already open, chord. Else normal click.
-            if (cell.classList.contains('open') || cell.classList.contains('predict-open')) {
-                if (isSoloMode) {
-                    soloChordCell(i, j);
-                } else {
-                    // prediction for chord
-                    getNeighbors(i, j).forEach(n => {
-                        if (!cells[n.r][n.c].classList.contains('open') && !cells[n.r][n.c].classList.contains('flag')) {
-                            cells[n.r][n.c].classList.add('predict-open');
-                        }
-                    });
-                    socket.emit('chordCell', {r: i, c: j});
-                }
+        
+        // Chording: Middle click OR Left+Right OR Left click on an opened cell
+        if (e.button === 1 || e.buttons === 3 || (e.button === 0 && (cell.classList.contains('open') || cell.classList.contains('predict-open')))) {
+            if (isSoloMode) {
+                soloChordCell(i, j);
             } else {
-                if (!cell.classList.contains('flag')) {
-                    if (isSoloMode) {
-                        soloClickCell(i, j);
-                    } else {
-                        cell.classList.add('predict-open'); // Client prediction
-                        socket.emit('clickCell', {r: i, c: j});
+                // prediction for chord
+                getNeighbors(i, j).forEach(n => {
+                    if (!cells[n.r][n.c].classList.contains('open') && !cells[n.r][n.c].classList.contains('flag')) {
+                        cells[n.r][n.c].classList.add('predict-open');
                     }
+                });
+                socket.emit('chordCell', {r: i, c: j});
+            }
+        }
+        // Normal Left Click
+        else if (e.button === 0) {
+            if (!cell.classList.contains('flag')) {
+                if (isSoloMode) {
+                    soloClickCell(i, j);
+                } else {
+                    cell.classList.add('predict-open'); // Client prediction
+                    socket.emit('clickCell', {r: i, c: j});
                 }
             }
         }
@@ -610,7 +636,7 @@ socket.on('gameOver', ({winner, reason, masterGrid}) => {
   }
 
   if (isSoloMode) {
-      btnSaveRecord.classList.remove('hidden');
+      // btnSaveRecord.classList.remove('hidden');
   } else {
       btnSaveRecord.classList.add('hidden');
   }
@@ -1044,6 +1070,6 @@ function triggerOfflineGameOver(isWin, reason) {
         gameMessage.classList.remove('hidden');
         gameResultText.innerText = reason;
         btnReturnLobby.classList.remove('hidden');
-        if (isRecording) btnSaveRecord.classList.remove('hidden');
+        // if (isRecording) btnSaveRecord.classList.remove('hidden');
     }, 1500);
 }

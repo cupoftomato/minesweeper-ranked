@@ -65,17 +65,7 @@
                  <div class="mode-card normal-card">
                      <div class="mode-info">
                          <h2>CASUAL MATCH</h2>
-                         <p>Đấu giao hữu Online. Chọn Seed tùy thích.</p>
-                         <select id="normalSeedSelect" class="seed-select-new">
-                             <option value="Random">Random Seed</option>
-                             <option value="Open">Open</option>
-                             <option value="Isolated">Isolated</option>
-                             <option value="Edge-Heavy">Edge-Heavy</option>
-                             <option value="Center-Heavy">Center-Heavy</option>
-                             <option value="Linear">Linear</option>
-                             <option value="Symmetric">Symmetric</option>
-                             <option value="Trap">Trap</option>
-                         </select>
+                         <p>Đấu giao hữu Online. Seed ngẫu nhiên.</p>
                      </div>
                      <button id="btnNormal" class="btn-play normal-btn">PLAY NORMAL</button>
                  </div>
@@ -120,7 +110,7 @@
                      <canvas id="eloChart" width="600" height="200"></canvas>
                  </div>
                  
-                 <button id="btnLogout" class="btn-sidebar btn-danger-outline" style="margin-top: 20px; text-align: center;">🚪 Đăng Xuất</button>
+                 <button id="btnLogout" class="btn-sidebar btn-danger-outline" style="margin-top: 20px; text-align: center;">Đăng Xuất</button>
              </div>
          </div>
          
@@ -146,19 +136,27 @@
               <div class="vs-p2"><span id="int-opp-name">ĐỐI THỦ</span> <br><span id="int-opp-elo" class="gold-text"></span></div>
           </div>
           
-          <div class="seed-info-box">
-              <h3>SEED TYPE</h3>
-              <div id="seed-name-display" class="seed-name">TRAP SEED</div>
+          <div id="votingUI" class="hidden" style="margin-top: 30px; text-align: center; background: rgba(0,0,0,0.5); padding: 20px; border-radius: 8px; border: 1px solid var(--accent);">
+              <h3 style="color: #fff; margin-bottom: 15px;">VOTE SEED (CASUAL)</h3>
+              <div style="display: flex; gap: 10px; justify-content: center;">
+                  <button class="btn-vote-seed btn-primary" data-seed="Random">Ngẫu nhiên</button>
+                  <button class="btn-vote-seed btn-primary" data-seed="NG">No Guessing</button>
+                  <button class="btn-vote-seed btn-primary" data-seed="Speed">Speed</button>
+                  <button class="btn-vote-seed btn-primary" data-seed="Logic">Logic</button>
+              </div>
+              <p id="votingStatus" style="color: #fbbf24; margin-top: 15px;"></p>
           </div>
 
-          <div class="timer-box">
-              Trận đấu sẽ bắt đầu sau: <br>
-              <span id="intermission-timer">10</span>s
-          </div>
+          <div id="countdownUI">
+              <div class="seed-info-box">
+                  <h3>SEED TYPE</h3>
+                  <div id="seed-name-display" class="seed-name">TRAP SEED</div>
+              </div>
 
-          <div class="vote-box">
-              <button id="btnVoteSkip" class="btn-danger">ĐỔI SEED KHÁC</button>
-              <p id="vote-status-text">0/2 người muốn đổi</p>
+              <div class="timer-box">
+                  Trận đấu sẽ bắt đầu sau: <br>
+                  <span id="intermission-timer">10</span>s
+              </div>
           </div>
       </div>
   </div>

@@ -119,10 +119,11 @@ function getRandomSeedType() {
 function createIntermission(p1Id, p2Id, type, forcedSeed = null) {
   let roomId = crypto.randomUUID();
   let seedType = forcedSeed ? forcedSeed : getRandomSeedType();
+  let status = type === 'normal' ? 'voting' : 'intermission';
   
   rooms[roomId] = {
-    id: roomId, type: type, seedType: seedType, players: {}, status: 'intermission',
-    votes: {}, skipTimer: null
+    id: roomId, type: type, seedType: seedType, players: {}, status: status,
+    votes: {}, skipTimer: null, seedVotes: {}
   };
   const room = rooms[roomId];
 
@@ -132,14 +133,23 @@ function createIntermission(p1Id, p2Id, type, forcedSeed = null) {
     if(sock) {
       sock.join(roomId); sock.roomId = roomId;
       let oppId = pid === p1Id ? p2Id : p1Id;
-      sock.emit('intermission_start', {
-        roomId: roomId, seedType: room.seedType,
-        myElo: getElo(socketUsers[pid]), oppElo: getElo(socketUsers[oppId]), oppName: socketUsers[oppId]
-      });
+      if (status === 'voting') {
+          sock.emit('intermission_voting', {
+            roomId: roomId,
+            myElo: getElo(socketUsers[pid]), oppElo: getElo(socketUsers[oppId]), oppName: socketUsers[oppId]
+          });
+      } else {
+          sock.emit('intermission_start', {
+            roomId: roomId, seedType: room.seedType,
+            myElo: getElo(socketUsers[pid]), oppElo: getElo(socketUsers[oppId]), oppName: socketUsers[oppId]
+          });
+      }
     }
   });
 
-  startIntermissionTimer(room);
+  if (status === 'intermission') {
+      startIntermissionTimer(room);
+  }
 }
 
 function startIntermissionTimer(room) {
@@ -396,22 +406,43 @@ io.on('connection', (socket) => {
     if (!socketUsers[socket.id]) return;
     removeFromAllQueues(socket.id);
     let type = typeof req === 'string' ? req : req.type;
-    let seedPref = typeof req === 'string' ? 'Random' : (req.seedPref || 'Random');
 
     if (type === 'normal') {
-      normalQueue.push({ id: socket.id, seedPref });
+      normalQueue.push({ id: socket.id });
       if (normalQueue.length >= 2) {
         let p1 = normalQueue.shift();
         let p2 = normalQueue.shift();
-        let chosenSeed = p1.seedPref !== 'Random' ? p1.seedPref : (p2.seedPref !== 'Random' ? p2.seedPref : getRandomSeedType());
-        if (p1.seedPref !== 'Random' && p2.seedPref !== 'Random' && p1.seedPref !== p2.seedPref) {
-            chosenSeed = Math.random() > 0.5 ? p1.seedPref : p2.seedPref;
-        }
-        createIntermission(p1.id, p2.id, 'normal', chosenSeed);
+        createIntermission(p1.id, p2.id, 'normal');
       }
     } else if (type === 'ranked') {
       rankedQueue.push(socket.id);
     }
+  });
+
+  socket.on('voteSeed', (seedPref) => {
+      if (!socket.roomId) return;
+      const room = rooms[socket.roomId];
+      if (!room || room.status !== 'voting') return;
+      
+      room.seedVotes[socket.id] = seedPref;
+      
+      let pids = Object.keys(room.players);
+      if (room.seedVotes[pids[0]] && room.seedVotes[pids[1]]) {
+          let s1 = room.seedVotes[pids[0]];
+          let s2 = room.seedVotes[pids[1]];
+          let chosenSeed = (s1 !== 'Random' ? s1 : (s2 !== 'Random' ? s2 : getRandomSeedType()));
+          if (s1 !== 'Random' && s2 !== 'Random' && s1 !== s2) {
+              chosenSeed = Math.random() > 0.5 ? s1 : s2;
+          }
+          room.seedType = chosenSeed;
+          room.status = 'intermission';
+          
+          io.to(room.id).emit('intermission_start', {
+              roomId: room.id, seedType: room.seedType,
+              myElo: -1, oppElo: -1
+          });
+          startIntermissionTimer(room);
+      }
   });
 
   socket.on('startSolo', (seedPref) => {
