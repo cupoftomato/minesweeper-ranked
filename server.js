@@ -224,7 +224,9 @@ function generateMasterBoard(type) {
       return cnt;
   }
 
-  while (minesPlaced < MINES) {
+  let maxMineTries = 2000;
+  while (minesPlaced < MINES && maxMineTries > 0) {
+      maxMineTries--;
       let r, c;
       if (type === 'Edge-Heavy' && minesPlaced < 40) {
           if (Math.random() > 0.5) {
@@ -271,10 +273,13 @@ function generateMasterBoard(type) {
 
       if (grid[r][c] === -1) continue;
 
-      if (type === 'Isolated' && countNeighbors(r, c) > 0) continue;
-      if (type === 'Open' && countNeighbors(r, c) >= 1) {
-          // allow max 1 neighbor
-          if (Math.random() < 0.8) continue; 
+      // Relax constraints if we're struggling to find spots
+      if (maxMineTries > 500) {
+          if (type === 'Isolated' && countNeighbors(r, c) > 0) continue;
+          if (type === 'Open' && countNeighbors(r, c) >= 1) {
+              // allow max 1 neighbor
+              if (Math.random() < 0.8) continue; 
+          }
       }
 
       grid[r][c] = -1;
